@@ -1,0 +1,32 @@
+# ==========================================
+# Archivos temporales y de caché de Unity
+# ==========================================
+/[Ll]library/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+
+# Archivos de IDEs
+/.vs/
+/.idea/
+/*.csproj
+/*.unityproj
+/*.sln
+/*.suo
+/*.user
+/*.userprefs
+
+# Archivos OS
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Variables de entorno y secretos
+# ==========================================
+.env
+.env.local
+*.env
