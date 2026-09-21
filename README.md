@@ -1,10 +1,10 @@
-# 🧪 Laboratorio de Alquimia — FLUXLAB
+# Laboratorio de Alquimia — FLUXLAB
 
 Bienvenido al repositorio oficial de **Laboratorio de Alquimia**, un videojuego 2D de estimulación cognitiva desarrollado en **Unity** por el equipo **FLUXLAB**.
 
 ---
 
-## 📋 Descripción
+## Descripción
 
 **Laboratorio de Alquimia** es un videojuego de puzles enfocado en el entrenamiento de la **memoria de trabajo** y la **atención selectiva**.
 
@@ -14,7 +14,7 @@ La principal mecánica consiste en **memorizar una secuencia de ingredientes y r
 
 ---
 
-## 📜 Historia
+## Historia
 
 En la **Gran Academia de Alquimia Astral**, los aprendices deben superar el legendario **Rito de la Memoria Fluida**.
 
@@ -24,7 +24,7 @@ Durante su aventura estará acompañado por **Mishi**, el misterioso gato del la
 
 ---
 
-## 🎮 Gameplay
+## Gameplay
 
 * **Género:** Puzle / Estimulación cognitiva
 * **Formato:** 2D
@@ -33,7 +33,7 @@ Durante su aventura estará acompañado por **Mishi**, el misterioso gato del la
 * **Interacción:** Mouse, pantalla táctil y teclado
 * **Motor:** Unity
 
-### 🧠 Mecánica principal
+### Mecánica principal
 
 1. El jugador observa una receta durante unos segundos.
 2. La receta desaparece.
@@ -46,7 +46,7 @@ La mecánica utiliza una **doble codificación visual mediante formas y colores*
 
 ---
 
-## 🧪 Ingredientes
+## Ingredientes
 
 Los ingredientes utilizan diferentes formas geométricas y colores para facilitar su identificación:
 
@@ -59,19 +59,19 @@ Los ingredientes utilizan diferentes formas geométricas y colores para facilita
 
 ---
 
-## 🐈 Personajes
+## Personajes
 
-### 🧙 Magnus
+### Magnus
 
 Joven aprendiz de alquimia y protagonista del juego. Es curioso, creativo, perseverante y busca demostrar sus habilidades dentro de la Academia de Alquimia Astral.
 
-### 🐈 Mishi
+### Mishi
 
 Gato mágico que acompaña al jugador y forma parte de las distracciones presentes en el laboratorio.
 
 ---
 
-## 🎨 Estilo visual
+## Estilo visual
 
 El proyecto busca una estética de **fantasía acogedora**, utilizando un estilo **Cartoon 2D** con:
 
@@ -86,7 +86,7 @@ La intención es crear un ambiente agradable que transmita concentración, descu
 
 ---
 
-## 📁 Estructura del proyecto
+## Estructura del proyecto
 
 Los recursos del juego se organizan dentro de la carpeta `Assets/` de Unity:
 
@@ -121,7 +121,7 @@ La organización de los recursos busca mantener separados los elementos gráfico
 
 ---
 
-## 🛠️ Herramientas
+## Herramientas
 
 * **Unity** — Desarrollo del videojuego.
 * **C#** — Programación.
@@ -131,14 +131,8 @@ La organización de los recursos busca mantener separados los elementos gráfico
 
 ---
 
-## 🚧 Estado del proyecto
+## Estado del proyecto
 
-🟡 **En desarrollo**
+**En desarrollo**
 
 Actualmente el proyecto se encuentra en etapa de desarrollo del prototipo, trabajando en la construcción de los recursos visuales, organización de `Assets/`, mecánicas principales y estructura del videojuego.
-
----
-
-## 👥 FLUXLAB
-
-**Laboratorio de Alquimia** es un proyecto desarrollado por el equipo **FLUXLAB**.
