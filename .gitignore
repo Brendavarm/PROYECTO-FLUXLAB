@@ -1,7 +1,7 @@
 # ==========================================
 # Archivos temporales y de caché de Unity
 # ==========================================
-/[Ll]library/
+/[Ll]ibrary/
 /[Tt]emp/
 /[Oo]bj/
 /[Bb]uild/
@@ -10,7 +10,9 @@
 /[Uu]ser[Ss]ettings/
 /[Mm]emoryCaptures/
 
-# Archivos de IDEs
+# ==========================================
+# Archivos de soluciones y proyectos (IDEs)
+# ==========================================
 /.vs/
 /.idea/
 /*.csproj
@@ -20,7 +22,9 @@
 /*.user
 /*.userprefs
 
-# Archivos OS
+# ==========================================
+# Archivos del Sistema Operativo
+# ==========================================
 .DS_Store
 Thumbs.db
 
