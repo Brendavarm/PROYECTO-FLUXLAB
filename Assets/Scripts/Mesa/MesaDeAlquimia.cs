@@ -116,6 +116,14 @@ namespace FluxLab
 
         void Awake()
         {
+            // El nivel 3 tiene su propio código (carpeta Nivel3); aquí solo se le cede el control.
+            if (AjustesJuego.NivelSeleccionado == Nivel3Juego.Nivel)
+            {
+                gameObject.AddComponent<Nivel3Juego>();
+                enabled = false;
+                return;
+            }
+
             FillCatalog();
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (font == null)
@@ -354,7 +362,7 @@ namespace FluxLab
             if (nivel >= 5 || nivel + 1 > AjustesJuego.NivelAlcanzado)
                 return;
             AjustesJuego.ElegirNivel(nivel + 1);
-            SceneManager.LoadScene("MesaDeAlquimia");
+            SceneManager.LoadScene(nivel + 1 == 2 ? "Nivel2_Frascos" : "MesaDeAlquimia");
         }
 
         void UpdateHud()
