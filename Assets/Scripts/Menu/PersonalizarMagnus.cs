@@ -168,8 +168,8 @@ namespace FluxLab
             figura = grupo.GetComponent<RectTransform>();
             figura.anchorMin = figura.anchorMax = new Vector2(0.5f, 0.5f);
             figura.pivot = new Vector2(0.5f, 0.5f);
-            figura.sizeDelta = new Vector2(280f, 360f);
-            figura.anchoredPosition = new Vector2(0f, 318f);
+            figura.sizeDelta = new Vector2(560f, 700f); //Agranda a Magnus
+            figura.anchoredPosition = new Vector2(0f, 160f); //baja la figuara de Magnus al piso en pocas palabras
             figuraBase = figura.anchoredPosition;
 
             aura = Imagen(grupo.transform, "Aura", brilloTextura, new Vector2(0f, 10f), 250f, 280f);
@@ -178,7 +178,9 @@ namespace FluxLab
 
             capa = Imagen(grupo.transform, "Capa", capaTextura, new Vector2(0f, -40f), 170f, 240f);
 
-            vista = Imagen(grupo.transform, "Magnus", baseMagnus, Vector2.zero, 140f);
+            vista = Imagen(grupo.transform, "Magnus", baseMagnus, Vector2.zero, 175f);// Recupara para el giro de 360 grados
+            vista.raycastTarget = true; // Permite recibir el ratón sobre el personaje
+            vista.gameObject.AddComponent<RotarMagnusUI>(); // Conecta el giro 360°
             EncajarAlto(vista, 330f);
             vistaCabeza = Imagen(grupo.transform, "Cabeza", cabezas[1], new Vector2(0f, 120f), 120f);
             vistaCabeza.gameObject.SetActive(false);
@@ -363,6 +365,8 @@ namespace FluxLab
 
         void Restablecer()
         {
+            var rotador = vista.GetComponent<RotarMagnusUI>();
+            if (rotador != null) rotador.RestablecerRotacion();
             pelo = 0;
             color = 0;
             accesorio = 0;
@@ -491,8 +495,19 @@ namespace FluxLab
         void AplicarAspecto()
         {
             vistaCabeza.gameObject.SetActive(false);
-            vista.texture = Aspecto(pelo, color);
-            EncajarAlto(vista, 340f);
+
+            // Cargar la vista 3D generada por la cámara
+            RenderTexture rt = Resources.Load<RenderTexture>("Personaje/Magnus_RT");
+            if (rt != null)
+            {
+                vista.texture = rt;
+            }
+            else
+            {
+                vista.texture = Aspecto(pelo, color);
+            }
+
+            EncajarAlto(vista, 880f); //Es parte de el tamaño de personaje de Magnus
             vista.rectTransform.anchoredPosition = Vector2.zero;
             vista.color = Color.white;
         }
