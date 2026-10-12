@@ -116,6 +116,14 @@ namespace FluxLab
 
         void Awake()
         {
+            // El nivel 3 tiene su propio código (carpeta Nivel3); aquí solo se le cede el control.
+            if (AjustesJuego.NivelSeleccionado == Nivel3Juego.Nivel)
+            {
+                gameObject.AddComponent<Nivel3Juego>();
+                enabled = false;
+                return;
+            }
+
             FillCatalog();
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (font == null)
