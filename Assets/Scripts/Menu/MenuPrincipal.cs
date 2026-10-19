@@ -15,6 +15,14 @@ namespace FluxLab
         AudioSource musica;
         AudioSource sfx;
         Text puntajeTexto;
+        Text nombrePlaca;
+        GameObject panelFicha;
+        InputField campoNombre;
+        Text avisoFicha;
+        Image fondoAprendiz;
+        Image fondoAprendiza;
+        bool eleccionAprendiza;
+        bool entrarAlGuardar;
         RawImage iconoSonido;
         RawImage iconoMusica;
         GameObject panelOpciones;
@@ -25,7 +33,9 @@ namespace FluxLab
 
         void Awake()
         {
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = Resources.Load<Font>("FluxLab/Nunito-Bold");
+            if (font == null)
+                font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (font == null)
                 font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
@@ -37,6 +47,11 @@ namespace FluxLab
         {
             if (Input.GetKeyDown(KeyCode.Escape))
             {
+                if (panelFicha != null && panelFicha.activeSelf)
+                {
+                    panelFicha.SetActive(false);
+                    return;
+                }
                 if (panelOpciones.activeSelf || panelLogros.activeSelf)
                     CerrarPaneles();
             }
@@ -99,6 +114,7 @@ namespace FluxLab
             ConstruirMarca(raiz);
             ConstruirSonidos(raiz);
             ConstruirPaneles(raiz);
+            ConstruirFicha(raiz);
             PrepararAudio();
         }
 
@@ -108,11 +124,18 @@ namespace FluxLab
             var pocion = Imagen(placa.transform, "Pocion", artes["pocion"], new Vector2(-108f, 2f), 62f);
             pocion.rectTransform.anchorMin = pocion.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
 
-            var nombre = Texto(placa.transform, "Magnus", 22, Hex("#fff4e4"), FontStyle.Bold);
-            nombre.alignment = TextAnchor.MiddleLeft;
-            nombre.rectTransform.anchoredPosition = new Vector2(28f, 16f);
-            nombre.rectTransform.sizeDelta = new Vector2(180f, 30f);
-            Contorno(nombre, new Color(0.25f, 0.12f, 0.05f, 0.9f));
+            placa.raycastTarget = true;
+            var tocarFicha = placa.gameObject.AddComponent<Button>();
+            tocarFicha.targetGraphic = placa;
+            tocarFicha.onClick.AddListener(AbrirFichaDesdeMarca);
+
+            nombrePlaca = Texto(placa.transform, "", 22, Hex("#fff4e4"), FontStyle.Bold);
+            nombrePlaca.alignment = TextAnchor.MiddleLeft;
+            nombrePlaca.horizontalOverflow = HorizontalWrapMode.Wrap;
+            nombrePlaca.rectTransform.anchoredPosition = new Vector2(28f, 16f);
+            nombrePlaca.rectTransform.sizeDelta = new Vector2(200f, 34f);
+            Contorno(nombrePlaca, new Color(0.25f, 0.12f, 0.05f, 0.9f));
+            RefrescarMarca();
 
             puntajeTexto = Texto(placa.transform, AjustesJuego.MejorPuntaje.ToString(), 28, Hex("#ffe08a"), FontStyle.Bold);
             puntajeTexto.alignment = TextAnchor.MiddleLeft;
@@ -264,7 +287,194 @@ namespace FluxLab
 
         void IrAJugar()
         {
+            if (!AjustesJuego.TieneFicha)
+            {
+                entrarAlGuardar = true;
+                AbrirFicha();
+                return;
+            }
+
             SceneManager.LoadScene("MapaNiveles");
+        }
+
+        void AbrirFichaDesdeMarca()
+        {
+            entrarAlGuardar = false;
+            AbrirFicha();
+        }
+
+        void ConstruirFicha(Transform raiz)
+        {
+            Sprite panel = Resources.Load<Sprite>("FluxLab/panel_beige");
+            Sprite beige = Resources.Load<Sprite>("FluxLab/button_beige");
+            Sprite marron = Resources.Load<Sprite>("FluxLab/button_brown");
+
+            panelFicha = new GameObject("Ficha", typeof(RectTransform));
+            panelFicha.transform.SetParent(raiz, false);
+            Estirar(panelFicha.GetComponent<RectTransform>());
+
+            var velo = new GameObject("Velo", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            velo.transform.SetParent(panelFicha.transform, false);
+            var veloImagen = velo.GetComponent<Image>();
+            veloImagen.color = new Color(0.08f, 0.05f, 0.04f, 0.62f);
+            veloImagen.raycastTarget = true;
+            Estirar(velo.GetComponent<RectTransform>());
+
+            var tarjetaGo = new GameObject("Tarjeta", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            tarjetaGo.transform.SetParent(panelFicha.transform, false);
+            var tarjeta = tarjetaGo.GetComponent<RectTransform>();
+            tarjeta.anchorMin = tarjeta.anchorMax = new Vector2(0.5f, 0.5f);
+            tarjeta.sizeDelta = new Vector2(860f, 620f);
+            var imagen = tarjetaGo.GetComponent<Image>();
+            imagen.sprite = panel;
+            imagen.type = Image.Type.Sliced;
+            imagen.color = new Color(1f, 0.97f, 0.92f, 0.98f);
+
+            var titulo = Texto(tarjeta, "Tu ficha", 46, Hex("#5a3b24"), FontStyle.Normal);
+            titulo.rectTransform.anchoredPosition = new Vector2(0f, 230f);
+            titulo.rectTransform.sizeDelta = new Vector2(760f, 64f);
+
+            var cuerpo = Texto(tarjeta, "No eres Magnus. Eres quien lo acompaña\npara que llegue a ser el mejor alquimista.", 28, Hex("#5a3b24"), FontStyle.Normal);
+            cuerpo.rectTransform.anchoredPosition = new Vector2(0f, 145f);
+            cuerpo.rectTransform.sizeDelta = new Vector2(740f, 90f);
+
+            var etiqueta = Texto(tarjeta, "Nombre", 26, Hex("#8a6848"), FontStyle.Normal);
+            etiqueta.alignment = TextAnchor.MiddleLeft;
+            etiqueta.rectTransform.anchoredPosition = new Vector2(-250f, 70f);
+            etiqueta.rectTransform.sizeDelta = new Vector2(240f, 36f);
+
+            campoNombre = CrearCampo(tarjeta, beige);
+            campoNombre.text = AjustesJuego.NombreAprendiz;
+
+            fondoAprendiz = BotonGenero(tarjeta, beige, "Aprendiz", new Vector2(-160f, -30f), false);
+            fondoAprendiza = BotonGenero(tarjeta, beige, "Aprendiza", new Vector2(160f, -30f), true);
+            eleccionAprendiza = AjustesJuego.EsAprendiza;
+            PintarGenero();
+
+            avisoFicha = Texto(tarjeta, "", 24, Hex("#a33b2b"), FontStyle.Normal);
+            avisoFicha.rectTransform.anchoredPosition = new Vector2(0f, -110f);
+            avisoFicha.rectTransform.sizeDelta = new Vector2(700f, 40f);
+
+            BotonFicha(tarjeta, marron, "Entrar al laboratorio", new Vector2(0f, -190f), new Vector2(460f, 78f), Hex("#f6efe4"), ConfirmarFicha);
+            BotonFicha(tarjeta, beige, "Ahora no", new Vector2(0f, -270f), new Vector2(240f, 58f), Hex("#5a3b24"), () => panelFicha.SetActive(false));
+            panelFicha.SetActive(false);
+        }
+
+        InputField CrearCampo(Transform padre, Sprite fondo)
+        {
+            var go = new GameObject("Campo", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(InputField));
+            go.transform.SetParent(padre, false);
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(620f, 72f);
+            rect.anchoredPosition = new Vector2(0f, 10f);
+            var imagen = go.GetComponent<Image>();
+            imagen.sprite = fondo;
+            imagen.type = Image.Type.Sliced;
+            imagen.color = new Color(1f, 0.98f, 0.94f, 1f);
+
+            var texto = Texto(go.transform, "", 32, Hex("#3b2a22"), FontStyle.Normal);
+            texto.alignment = TextAnchor.MiddleLeft;
+            texto.rectTransform.anchorMin = Vector2.zero;
+            texto.rectTransform.anchorMax = Vector2.one;
+            texto.rectTransform.offsetMin = new Vector2(22f, 8f);
+            texto.rectTransform.offsetMax = new Vector2(-22f, -8f);
+            texto.supportRichText = false;
+
+            var pista = Texto(go.transform, "Escribe tu nombre", 32, Hex("#b08968"), FontStyle.Normal);
+            pista.alignment = TextAnchor.MiddleLeft;
+            pista.fontStyle = FontStyle.Italic;
+            pista.rectTransform.anchorMin = Vector2.zero;
+            pista.rectTransform.anchorMax = Vector2.one;
+            pista.rectTransform.offsetMin = new Vector2(22f, 8f);
+            pista.rectTransform.offsetMax = new Vector2(-22f, -8f);
+
+            var campo = go.GetComponent<InputField>();
+            campo.textComponent = texto;
+            campo.placeholder = pista;
+            campo.characterLimit = 18;
+            campo.lineType = InputField.LineType.SingleLine;
+            return campo;
+        }
+
+        Image BotonGenero(Transform padre, Sprite sprite, string etiqueta, Vector2 posicion, bool aprendiza)
+        {
+            var imagen = BotonFicha(padre, sprite, etiqueta, posicion, new Vector2(260f, 70f), Hex("#5a3b24"), () => ElegirGenero(aprendiza));
+            return imagen;
+        }
+
+        void ElegirGenero(bool aprendiza)
+        {
+            eleccionAprendiza = aprendiza;
+            PintarGenero();
+        }
+
+        void PintarGenero()
+        {
+            if (fondoAprendiz != null)
+                fondoAprendiz.color = eleccionAprendiza ? new Color(1f, 0.96f, 0.9f, 1f) : Hex("#e7b15a");
+            if (fondoAprendiza != null)
+                fondoAprendiza.color = eleccionAprendiza ? Hex("#e7b15a") : new Color(1f, 0.96f, 0.9f, 1f);
+        }
+
+        Image BotonFicha(Transform padre, Sprite sprite, string etiqueta, Vector2 posicion, Vector2 tamano, Color colorTexto, UnityEngine.Events.UnityAction accion)
+        {
+            var go = new GameObject(etiqueta, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            go.transform.SetParent(padre, false);
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = tamano;
+            rect.anchoredPosition = posicion;
+            var imagen = go.GetComponent<Image>();
+            imagen.sprite = sprite;
+            imagen.type = Image.Type.Sliced;
+            var boton = go.GetComponent<Button>();
+            boton.targetGraphic = imagen;
+            boton.onClick.AddListener(accion);
+            var texto = Texto(go.transform, etiqueta, 30, colorTexto, FontStyle.Normal);
+            texto.rectTransform.sizeDelta = tamano;
+            return imagen;
+        }
+
+        void AbrirFicha()
+        {
+            CerrarPaneles();
+            eleccionAprendiza = AjustesJuego.EsAprendiza;
+            if (campoNombre != null)
+                campoNombre.text = AjustesJuego.NombreAprendiz;
+            if (avisoFicha != null)
+                avisoFicha.text = "";
+            PintarGenero();
+            panelFicha.SetActive(true);
+        }
+
+        void ConfirmarFicha()
+        {
+            string nombre = campoNombre != null ? campoNombre.text.Trim() : "";
+            if (nombre.Length < 2)
+            {
+                if (avisoFicha != null)
+                    avisoFicha.text = "Escribe un nombre de al menos dos letras.";
+                return;
+            }
+
+            AjustesJuego.NombreAprendiz = nombre;
+            AjustesJuego.EsAprendiza = eleccionAprendiza;
+            RefrescarMarca();
+            if (entrarAlGuardar)
+            {
+                SceneManager.LoadScene("MapaNiveles");
+                return;
+            }
+
+            panelFicha.SetActive(false);
+        }
+
+        void RefrescarMarca()
+        {
+            if (nombrePlaca == null)
+                return;
+            nombrePlaca.text = AjustesJuego.TieneFicha ? AjustesJuego.NombreAprendiz : "Tu ficha";
         }
 
         void IrAPersonalizar()
