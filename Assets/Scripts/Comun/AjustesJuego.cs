@@ -14,6 +14,8 @@ namespace FluxLab
         const string AccesorioKey = "flux.accesorio";
         const string EfectoKey = "flux.efecto";
         const string NivelKey = "flux.nivel";
+        const string NombreKey = "flux.nombre";
+        const string GeneroKey = "flux.genero";
 
         public static bool MusicaActiva
         {
@@ -72,6 +74,36 @@ namespace FluxLab
         public static int NivelAlcanzado => Mathf.Clamp(PlayerPrefs.GetInt(NivelKey, 1), 1, 5);
 
         public static int NivelSeleccionado = 1;
+
+        public static string NombreAprendiz
+        {
+            get => PlayerPrefs.GetString(NombreKey, "");
+            set
+            {
+                PlayerPrefs.SetString(NombreKey, value == null ? "" : value.Trim());
+                PlayerPrefs.Save();
+            }
+        }
+
+        public static bool EsAprendiza
+        {
+            get => PlayerPrefs.GetInt(GeneroKey, 0) == 1;
+            set
+            {
+                PlayerPrefs.SetInt(GeneroKey, value ? 1 : 0);
+                PlayerPrefs.Save();
+            }
+        }
+
+        public static bool TieneFicha => !string.IsNullOrWhiteSpace(NombreAprendiz);
+
+        public static string NombreParaHablar => TieneFicha ? NombreAprendiz.Trim() : "aprendiz";
+
+        public static string Rol => EsAprendiza ? "aprendiza" : "aprendiz";
+
+        public static string Companero => EsAprendiza ? "compañera" : "compañero";
+
+        public static string Articulo => EsAprendiza ? "la" : "el";
 
         public static void ElegirNivel(int nivel)
         {

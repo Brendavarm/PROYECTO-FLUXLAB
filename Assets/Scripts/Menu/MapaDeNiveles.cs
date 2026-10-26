@@ -13,11 +13,11 @@ namespace FluxLab
     {
         static readonly Vector2[] Puntos =
         {
-            new Vector2(-640f, -200f),
-            new Vector2(-500f, 230f),
-            new Vector2(-20f, 80f),
-            new Vector2(350f, 150f),
-            new Vector2(690f, 210f)
+            new Vector2(-730f, -238f),
+            new Vector2(-576f, 173f),
+            new Vector2(-77f, -86f),
+            new Vector2(211f, 108f),
+            new Vector2(634f, 216f)
         };
 
         Font font;
@@ -79,15 +79,17 @@ namespace FluxLab
             var fondo = ImagenRaw(raiz, "Mapa", Leer("Menu/mapa.jpg"), Vector2.zero, new Vector2(1920f, 1080f));
             Stretch(fondo.rectTransform);
 
-            var titulo = Imagen(raiz, "Titulo", SpriteRecurso("panel_beige"), new Vector2(0f, 478f), new Vector2(520f, 78f));
-            titulo.type = Image.Type.Sliced;
-            var tituloTexto = Texto(titulo.transform, "Camino del taller", 32, Hex("#5a3b24"), FontStyle.Bold);
-            tituloTexto.rectTransform.sizeDelta = new Vector2(480f, 60f);
+            var titulo = Nivel3UI.Placa(raiz, "placa_titulo", new Vector2(0f, 448f), new Vector2(680f, 175f));
+            var tituloTexto = Texto(titulo.transform, "Camino del taller", 42, Hex("#f6efe2"), FontStyle.Normal);
+            tituloTexto.font = Nivel3UI.Fuente;
+            tituloTexto.rectTransform.sizeDelta = new Vector2(520f, 90f);
+            Contorno(tituloTexto, new Color(0.15f, 0.07f, 0.03f, 0.95f), 2.2f);
 
-            var puntos = Imagen(raiz, "Puntos", SpriteRecurso("panel_beige"), new Vector2(760f, 478f), new Vector2(280f, 86f));
-            puntos.type = Image.Type.Sliced;
-            var puntosTexto = Texto(puntos.transform, "Puntos: " + AjustesJuego.MejorPuntaje + "\nAbiertos: " + AjustesJuego.NivelAlcanzado + " / 5", 20, Hex("#5a3b24"), FontStyle.Bold);
-            puntosTexto.rectTransform.sizeDelta = new Vector2(250f, 70f);
+            var puntos = PlacaMadera(raiz, "Puntos", new Vector2(755f, 458f), new Vector2(310f, 108f));
+            var puntosTexto = Texto(puntos.transform, "Puntos: " + AjustesJuego.MejorPuntaje + "\nAbiertos: " + AjustesJuego.NivelAlcanzado + " / 5", 22, Hex("#fff6ea"), FontStyle.Normal);
+            puntosTexto.font = Nivel3UI.Fuente;
+            puntosTexto.rectTransform.sizeDelta = new Vector2(270f, 78f);
+            Contorno(puntosTexto, new Color(0.15f, 0.07f, 0.03f, 0.95f), 1.6f);
 
             anillo = Imagen(raiz, "Anillo", Disco(96), Puntos[0], new Vector2(120f, 120f)).rectTransform;
             anillo.GetComponent<Image>().color = new Color(1f, 0.86f, 0.45f, 0.55f);
@@ -100,10 +102,9 @@ namespace FluxLab
                 marcas[i].anchorMin = marcas[i].anchorMax = new Vector2(0.5f, 0.5f);
                 marcas[i].pivot = new Vector2(0.5f, 0.5f);
                 marcas[i].anchoredPosition = Puntos[i];
-                marcas[i].sizeDelta = new Vector2(190f, 150f);
+                marcas[i].sizeDelta = new Vector2(250f, 180f);
 
-                placas[i] = Imagen(marca.transform, "Placa", SpriteRecurso("panel_beige"), new Vector2(0f, -62f), new Vector2(176f, 54f));
-                placas[i].type = Image.Type.Sliced;
+                placas[i] = PlacaMadera(marca.transform, "Placa", new Vector2(0f, -64f), new Vector2(236f, 82f));
                 placas[i].raycastTarget = true;
                 var boton = placas[i].gameObject.AddComponent<Button>();
                 boton.targetGraphic = placas[i];
@@ -112,45 +113,52 @@ namespace FluxLab
                 boton.onClick.AddListener(() => Elegir(capturado));
                 placas[i].gameObject.AddComponent<HoverScale>().scale = 1.06f;
 
-                etiquetas[i] = Texto(placas[i].transform, NivelesTaller.Lista[i].corto, 20, Hex("#5a3b24"), FontStyle.Bold);
-                etiquetas[i].rectTransform.sizeDelta = new Vector2(160f, 40f);
+                etiquetas[i] = Texto(placas[i].transform, NivelesTaller.Lista[i].corto, 28, Hex("#fff6ea"), FontStyle.Normal);
+                etiquetas[i].font = Nivel3UI.Fuente;
+                etiquetas[i].rectTransform.sizeDelta = new Vector2(200f, 64f);
+                Contorno(etiquetas[i], new Color(0.15f, 0.07f, 0.03f, 0.95f), 1.8f);
             }
 
-            var ficha = Imagen(raiz, "Ficha", SpriteRecurso("panel_beige"), new Vector2(40f, -458f), new Vector2(860f, 168f));
-            ficha.type = Image.Type.Sliced;
-            nombreDetalle = Texto(ficha.transform, "", 30, Hex("#5a3b24"), FontStyle.Bold);
-            nombreDetalle.alignment = TextAnchor.MiddleLeft;
-            nombreDetalle.rectTransform.anchorMin = new Vector2(0f, 0.5f);
-            nombreDetalle.rectTransform.anchorMax = new Vector2(0f, 0.5f);
-            nombreDetalle.rectTransform.pivot = new Vector2(0f, 0.5f);
-            nombreDetalle.rectTransform.anchoredPosition = new Vector2(28f, 42f);
-            nombreDetalle.rectTransform.sizeDelta = new Vector2(560f, 40f);
+            var ficha = Nivel3UI.Panel(raiz, "Ficha", new Vector2(30f, -462f), new Vector2(980f, 190f));
+            var sombraFicha = ficha.gameObject.AddComponent<Shadow>();
+            sombraFicha.effectColor = new Color(0f, 0f, 0f, 0.4f);
+            sombraFicha.effectDistance = new Vector2(0f, -10f);
 
-            cuerpoDetalle = Texto(ficha.transform, "", 20, Hex("#6a4b32"), FontStyle.Normal);
-            cuerpoDetalle.alignment = TextAnchor.UpperLeft;
-            cuerpoDetalle.rectTransform.anchorMin = new Vector2(0f, 0.5f);
-            cuerpoDetalle.rectTransform.anchorMax = new Vector2(0f, 0.5f);
-            cuerpoDetalle.rectTransform.pivot = new Vector2(0f, 1f);
-            cuerpoDetalle.rectTransform.anchoredPosition = new Vector2(28f, 16f);
-            cuerpoDetalle.rectTransform.sizeDelta = new Vector2(560f, 90f);
+            var placaNombre = PlacaMadera(ficha.transform, "Nombre", new Vector2(-175f, 42f), new Vector2(500f, 88f));
+            nombreDetalle = Texto(placaNombre.transform, "", 32, Hex("#fff6ea"), FontStyle.Normal);
+            nombreDetalle.font = Nivel3UI.Fuente;
+            nombreDetalle.rectTransform.sizeDelta = new Vector2(450f, 70f);
+            Contorno(nombreDetalle, new Color(0.15f, 0.07f, 0.03f, 0.95f), 1.8f);
 
-            botonEntrar = Imagen(ficha.transform, "Entrar", SpriteRecurso("button_brown"), new Vector2(320f, 0f), new Vector2(190f, 72f));
-            botonEntrar.type = Image.Type.Sliced;
+            cuerpoDetalle = Texto(ficha.transform, "", 22, Hex("#5a3b24"), FontStyle.Normal);
+            cuerpoDetalle.font = Nivel3UI.Fuente;
+            cuerpoDetalle.alignment = TextAnchor.MiddleLeft;
+            cuerpoDetalle.rectTransform.anchoredPosition = new Vector2(-175f, -52f);
+            cuerpoDetalle.rectTransform.sizeDelta = new Vector2(500f, 72f);
+
+            botonEntrar = PlacaMadera(ficha.transform, "Entrar", new Vector2(350f, 8f), new Vector2(230f, 90f));
             botonEntrar.raycastTarget = true;
             var entrar = botonEntrar.gameObject.AddComponent<Button>();
             entrar.targetGraphic = botonEntrar;
+            entrar.navigation = new Navigation { mode = Navigation.Mode.None };
             entrar.onClick.AddListener(Entrar);
-            textoEntrar = Texto(botonEntrar.transform, "Entrar", 26, Hex("#f6efe4"), FontStyle.Bold);
-            Stretch(textoEntrar.rectTransform);
+            botonEntrar.gameObject.AddComponent<HoverScale>().scale = 1.04f;
+            textoEntrar = Texto(botonEntrar.transform, "Entrar", 30, Hex("#fff6ea"), FontStyle.Normal);
+            textoEntrar.font = Nivel3UI.Fuente;
+            textoEntrar.rectTransform.sizeDelta = new Vector2(190f, 70f);
+            Contorno(textoEntrar, new Color(0.15f, 0.07f, 0.03f, 0.95f), 1.8f);
 
-            var volver = Imagen(raiz, "Volver", SpriteRecurso("button_brown"), new Vector2(-800f, -458f), new Vector2(200f, 72f));
-            volver.type = Image.Type.Sliced;
+            var volver = PlacaMadera(raiz, "Volver", new Vector2(-800f, -462f), new Vector2(220f, 88f));
             volver.raycastTarget = true;
             var volverBoton = volver.gameObject.AddComponent<Button>();
             volverBoton.targetGraphic = volver;
+            volverBoton.navigation = new Navigation { mode = Navigation.Mode.None };
             volverBoton.onClick.AddListener(Volver);
-            var volverTexto = Texto(volver.transform, "Volver", 26, Hex("#f6efe4"), FontStyle.Bold);
-            Stretch(volverTexto.rectTransform);
+            volver.gameObject.AddComponent<HoverScale>().scale = 1.04f;
+            var volverTexto = Texto(volver.transform, "Volver", 28, Hex("#fff6ea"), FontStyle.Normal);
+            volverTexto.font = Nivel3UI.Fuente;
+            volverTexto.rectTransform.sizeDelta = new Vector2(180f, 68f);
+            Contorno(volverTexto, new Color(0.15f, 0.07f, 0.03f, 0.95f), 1.8f);
 
             PrepararMusica();
         }
@@ -181,9 +189,11 @@ namespace FluxLab
             {
                 bool libre = i + 1 <= AjustesJuego.NivelAlcanzado;
                 bool activo = i == elegido;
-                placas[i].color = !libre ? Hex("#d5cfc4") : activo ? Hex("#fff1c2") : Hex("#f4ead7");
+                placas[i].color = !libre
+                    ? new Color(0.55f, 0.48f, 0.4f, 1f)
+                    : activo ? new Color(1f, 0.84f, 0.46f, 1f) : Color.white;
                 etiquetas[i].text = libre ? NivelesTaller.Lista[i].corto : "Nv. " + (i + 1);
-                etiquetas[i].color = libre ? Hex("#5a3b24") : Hex("#7a736a");
+                etiquetas[i].color = libre ? Hex("#fff6ea") : new Color(0.82f, 0.76f, 0.68f, 1f);
             }
         }
 
@@ -192,7 +202,7 @@ namespace FluxLab
             if (elegido + 1 > AjustesJuego.NivelAlcanzado)
                 return;
             AjustesJuego.ElegirNivel(elegido + 1);
-            SceneManager.LoadScene("MesaDeAlquimia");
+            SceneManager.LoadScene(elegido + 1 == 2 ? "Nivel2_Frascos" : "MesaDeAlquimia");
         }
 
         void Volver()
@@ -259,6 +269,26 @@ namespace FluxLab
             texto.raycastTarget = false;
             texto.rectTransform.sizeDelta = new Vector2(300f, 40f);
             return texto;
+        }
+
+        Image PlacaMadera(Transform padre, string nombre, Vector2 posicion, Vector2 tamano)
+        {
+            Sprite madera = Nivel3UI.SpriteUI("boton_ancho");
+            var imagen = Imagen(padre, nombre, madera != null ? madera : SpriteRecurso("button_brown"), posicion, tamano);
+            imagen.type = Image.Type.Sliced;
+            if (madera != null)
+                imagen.pixelsPerUnitMultiplier = tamano.y >= 100f ? 1.2f : 1.45f;
+            var sombra = imagen.gameObject.AddComponent<Shadow>();
+            sombra.effectColor = new Color(0.05f, 0.02f, 0.01f, 0.42f);
+            sombra.effectDistance = new Vector2(0f, -5f);
+            return imagen;
+        }
+
+        static void Contorno(Text texto, Color color, float grosor)
+        {
+            var contorno = texto.gameObject.AddComponent<Outline>();
+            contorno.effectColor = color;
+            contorno.effectDistance = new Vector2(grosor, -grosor);
         }
 
         static void Stretch(RectTransform rect)

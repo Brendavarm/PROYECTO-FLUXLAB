@@ -17,4 +17,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/MesaDeAlquimia.unity
     guid: 1f836df5018e6ed4d8ff48cf09921993
+  - enabled: 1
+    path: Assets/Scenes/Nivel2_Frascos.unity
+    guid: 766a944f72c64fef98290d25e0743880
   m_configObjects: {}

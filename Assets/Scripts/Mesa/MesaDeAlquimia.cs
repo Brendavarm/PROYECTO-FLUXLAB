@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using FluxLab.Nivel2;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -64,6 +65,12 @@ namespace FluxLab
         RectTransform magnusRect;
         RectTransform sombraRect;
         Vector2 magnusBase;
+        MagnusAnimado magnusVivo;
+        readonly Dictionary<IngredientKind, RectTransform> cartas = new Dictionary<IngredientKind, RectTransform>();
+        Transform capaFrascos;
+        ParticulasUI efectosFrascos;
+        bool vertiendo;
+        int sesionActual;
         Animo animo;
         float animoReloj;
         float animoDuracion;
@@ -102,6 +109,8 @@ namespace FluxLab
         Image siguienteImagen;
         Text siguienteTexto;
         RectTransform magnusResultado;
+        RawImage magnusFinal;
+        bool magnusFinalCelebra;
         RectTransform[] confeti;
         AudioSource sfx;
 
@@ -113,6 +122,25 @@ namespace FluxLab
         bool inputOpen;
         float recallStart;
         bool built;
+        Transform lienzo;
+        bool vistaJardin;
+        float yHuecoReceta = -6f;
+        float yHuecoCaldero = 176f;
+        float sombraY = -168f;
+        RectTransform mundoJardin;
+        Nivel3Lampara lamparaJardin;
+        Image cuerpoCaldero;
+        Image destelloCaldero;
+        Image fogonazo;
+        Text textoBoom;
+        Vector2 bocaCaldero;
+        RectTransform tableroReceta;
+        Vector2 recetaQuieta;
+        Image brilloReceta;
+        Coroutine focoReceta;
+        BuhoLuma buho;
+        static readonly Vector2 RecetaGrande = new Vector2(20f, 188f);
+        const float EscalaRecetaGrande = 1.42f;
 
         void Awake()
         {
@@ -125,7 +153,15 @@ namespace FluxLab
             }
 
             FillCatalog();
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = Resources.Load<Font>("FluxLab/Nunito-Bold");
+            if (AjustesJuego.NivelSeleccionado == 1)
+            {
+                var lilita = Resources.Load<Font>("FluxLab/Nivel3/Fuentes/LilitaOne-Regular");
+                if (lilita != null)
+                    font = lilita;
+            }
+            if (font == null)
+                font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (font == null)
                 font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
@@ -139,6 +175,13 @@ namespace FluxLab
 
         void Start()
         {
+            if (AjustesJuego.NivelSeleccionado <= 1)
+            {
+                var tutorial = gameObject.AddComponent<TutorialCapitulo1>();
+                tutorial.Abrir(lienzo, font, BeginSession);
+                return;
+            }
+
             BeginSession();
         }
 
@@ -190,20 +233,59 @@ namespace FluxLab
                 cauldronRect.localScale = Vector3.one;
             }
 
+            if (cuerpoCaldero != null)
+                cuerpoCaldero.color = Color.white;
+            if (destelloCaldero != null)
+                destelloCaldero.color = new Color(1f, 1f, 1f, 0f);
+            if (fogonazo != null)
+                fogonazo.color = new Color(1f, 0.55f, 0.2f, 0f);
+            if (textoBoom != null)
+                textoBoom.color = new Color(1f, 0.54f, 0.4f, 0f);
+            if (mundoJardin != null)
+                mundoJardin.anchoredPosition = Vector2.zero;
+
+            vertiendo = false;
+            sesionActual++;
             PonerAnimo(Animo.Quieto, 0f);
             StartCoroutine(Session());
         }
 
         public void TryAdd(IngredientKind kind)
         {
-            if (!inputOpen || placed.Count >= largoReceta)
+            if (!inputOpen || vertiendo || placed.Count >= largoReceta)
                 return;
 
+            if (vistaJardin && cartas.TryGetValue(kind, out RectTransform carta))
+            {
+                vertiendo = true;
+                int sesion = sesionActual;
+                PlayOne("click");
+                PonerAnimo(Animo.Remueve, 0.46f);
+                LanzarFrasco(kind, carta, () =>
+                {
+                    vertiendo = false;
+                    if (sesion != sesionActual || !inputOpen)
+                        return;
+                    ColocarIngrediente(kind);
+                });
+                return;
+            }
+
+            ColocarIngrediente(kind);
+        }
+
+        void ColocarIngrediente(IngredientKind kind)
+        {
             placed.Add(kind);
-            PlayOne("click");
-            PonerAnimo(Animo.Remueve, 0.46f);
+            if (!vistaJardin)
+            {
+                PlayOne("click");
+                PonerAnimo(Animo.Remueve, 0.46f);
+            }
             RefreshSlots(popLast: true);
-            if (cauldronGlow != null)
+            if (vistaJardin)
+                ReaccionVertido(kind, placed.Count < largoReceta);
+            else if (cauldronGlow != null)
             {
                 Color glow = catalog[kind].Glow;
                 glow.a = 0.55f;
@@ -231,7 +313,14 @@ namespace FluxLab
                     timerTexto.text = "Bien hecho";
                 PlayOne("acierto");
                 PonerAnimo(Animo.Festeja, 0.72f);
-                StartCoroutine(Pulse(cauldronRect));
+                if (vistaJardin)
+                {
+                    buho?.Festejar();
+                    EnfocarReceta(true);
+                    StartCoroutine(TriunfoJardin());
+                }
+                else
+                    StartCoroutine(Pulse(cauldronRect));
             }
             else
             {
@@ -242,7 +331,14 @@ namespace FluxLab
                     timerTexto.text = "Casi";
                 PlayOne("error");
                 PonerAnimo(Animo.SeEquivoca, 0.55f);
-                StartCoroutine(Wobble(cauldronRect));
+                if (vistaJardin)
+                {
+                    buho?.Asustarse();
+                    EnfocarReceta(true);
+                    StartCoroutine(ExplotarJardin());
+                }
+                else
+                    StartCoroutine(Wobble(cauldronRect));
             }
 
             UpdateHud();
@@ -250,7 +346,7 @@ namespace FluxLab
 
         public void Vaciar()
         {
-            if (!inputOpen || placed.Count == 0)
+            if (!inputOpen || vertiendo || placed.Count == 0)
                 return;
 
             placed.Clear();
@@ -260,6 +356,9 @@ namespace FluxLab
 
         IEnumerator Session()
         {
+            if (vistaJardin)
+                yield return ConteoInicial();
+
             for (roundIndex = 1; roundIndex <= rondas; roundIndex++)
             {
                 UpdateHud();
@@ -276,6 +375,8 @@ namespace FluxLab
             placed.Clear();
             inputOpen = false;
             ShowRecipe(true);
+            EnfocarReceta(true);
+            buho?.MirarReceta();
             RefreshSlots(popLast: false);
             promptLabel.text = "Memoriza el orden, de izquierda a derecha.";
             promptLabel.color = Hex("#5a3b24");
@@ -296,6 +397,8 @@ namespace FluxLab
             }
 
             ShowRecipe(false);
+            EnfocarReceta(false);
+            buho?.MirarCaldero();
             promptLabel.text = "Ahora repítelo en el caldero.";
             promptLabel.color = Hex("#5a3b24");
             if (timerTexto != null)
@@ -308,7 +411,7 @@ namespace FluxLab
             while (inputOpen)
                 yield return null;
 
-            yield return new WaitForSeconds(1.35f);
+            yield return new WaitForSeconds(vistaJardin ? 2.4f : 1.35f);
         }
 
         void ShowResult()
@@ -347,13 +450,39 @@ namespace FluxLab
             resultAviso.text = aviso;
 
             for (int i = 0; i < resultEstrellas.Length; i++)
-                resultEstrellas[i].color = i < estrellas ? Color.white : new Color(0.45f, 0.42f, 0.4f, 0.55f);
+                resultEstrellas[i].color = i < estrellas && !vistaJardin ? Color.white : new Color(0.4f, 0.35f, 0.32f, 0.55f);
+
+            if (vistaJardin)
+            {
+                resultTitulo.text = estrellas > 0 ? "¡Nivel completado!" : "El caldero espera";
+                resultNivel.text = taller.nombre;
+                resultPuntos.text = "Puntos: " + score;
+                resultRango.text = rango;
+                resultPrecision.text = "Precisión: " + precision + "%     Rondas: " + correct + " / " + rondas;
+                resultTiempo.text = "Tiempo medio: " + promedio.ToString("0.0", CultureInfo.InvariantCulture) + " s";
+                resultRacha.text = "Racha máxima: " + rachaMaxima + " / " + rondas;
+                if (!string.IsNullOrEmpty(aviso))
+                {
+                    resultPocion.text = "¡Felicidades! Pasaste al siguiente nivel:";
+                    resultAviso.text = NivelesTaller.De(AjustesJuego.NivelAlcanzado).nombre;
+                    resultAviso.color = Nivel3UI.Hex("#ffd86b");
+                }
+                else
+                {
+                    resultPocion.text = "Poción del nivel: " + Pociones[nivel - 1];
+                    resultAviso.text = "";
+                }
+            }
 
             bool haySiguiente = nivel < 5 && nivel + 1 <= AjustesJuego.NivelAlcanzado;
             siguienteTexto.text = haySiguiente ? "Siguiente nivel" : nivel >= 5 ? "Fin del camino" : "Aún cerrado";
-            siguienteImagen.color = haySiguiente ? Hex("#ffe08a") : new Color(0.72f, 0.72f, 0.72f, 1f);
+            siguienteImagen.color = haySiguiente ? (vistaJardin ? Color.white : Hex("#ffe08a")) : new Color(0.72f, 0.72f, 0.72f, 1f);
             siguienteImagen.GetComponent<Button>().interactable = haySiguiente;
+            if (vistaJardin)
+                PonerMagnusFinal(estrellas);
             resultRoot.SetActive(true);
+            if (vistaJardin)
+                StartCoroutine(EncenderEstrellas(estrellas));
         }
 
         public void IrAlSiguiente()
@@ -362,7 +491,7 @@ namespace FluxLab
             if (nivel >= 5 || nivel + 1 > AjustesJuego.NivelAlcanzado)
                 return;
             AjustesJuego.ElegirNivel(nivel + 1);
-            SceneManager.LoadScene("MesaDeAlquimia");
+            SceneManager.LoadScene(nivel + 1 == 2 ? "Nivel2_Frascos" : "MesaDeAlquimia");
         }
 
         void UpdateHud()
@@ -427,13 +556,34 @@ namespace FluxLab
         {
             EnsureEventSystem();
             var canvas = CreateCanvas();
-            BuildRoom(canvas.transform);
-            BuildCast(canvas.transform);
-            BuildCauldron(canvas.transform);
-            BuildRecipe(canvas.transform);
-            BuildTray(canvas.transform);
-            BuildHud(canvas.transform);
-            BuildResult(canvas.transform);
+            lienzo = canvas.transform;
+            Transform escena = lienzo;
+            if (vistaJardin)
+            {
+                var mundo = new GameObject("Mundo", typeof(RectTransform));
+                mundo.transform.SetParent(lienzo, false);
+                mundoJardin = mundo.GetComponent<RectTransform>();
+                Stretch(mundoJardin, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+                escena = mundo.transform;
+            }
+
+            BuildRoom(escena);
+            if (vistaJardin)
+                AdornarCielo(escena);
+            BuildCast(escena);
+            BuildCauldron(escena);
+            if (vistaJardin)
+                AdornarFrascos(escena);
+            if (vistaJardin)
+                PonerBuho(escena);
+            BuildRecipe(escena);
+            BuildTray(escena);
+            if (vistaJardin)
+                PrepararCapaFrascos();
+            BuildHud(escena);
+            if (vistaJardin)
+                CrearFogonazo();
+            BuildResult(lienzo);
             BuildAudio();
         }
 
@@ -443,6 +593,7 @@ namespace FluxLab
             rondas = taller.rondas;
             largoReceta = Mathf.Clamp(taller.receta, 1, MaxReceta);
             segundosMemoria = taller.segundos;
+            vistaJardin = AjustesJuego.NivelSeleccionado == 1;
         }
 
         void AcomodarHuecos()
@@ -460,20 +611,55 @@ namespace FluxLab
                 if (!activo)
                     continue;
                 float centro = (largoReceta - 1) * 0.5f;
-                huecosReceta[i].anchoredPosition = new Vector2((i - centro) * paso, -6f);
-                huecosCaldero[i].anchoredPosition = new Vector2((i - centro) * pasoCaldero, 176f);
+                huecosReceta[i].anchoredPosition = new Vector2((i - centro) * paso, yHuecoReceta);
+                huecosCaldero[i].anchoredPosition = new Vector2((i - centro) * pasoCaldero, yHuecoCaldero);
             }
         }
 
         void BuildRoom(Transform parent)
         {
-            var fondo = CreateRaw(parent, "Laboratorio", Archivo("Menu/fondo.png"), Color.white);
+            Texture2D textura = null;
+            if (vistaJardin)
+                textura = Nivel3UI.LeerTextura("Menu/fondo_nivel3.png");
+            if (textura == null && vistaJardin)
+                textura = Nivel3UI.LeerTextura("Menu/fondo_sin_gato.png");
+            if (textura == null)
+                textura = Archivo("Menu/fondo.png");
+
+            var fondo = CreateRaw(parent, "Laboratorio", textura, Color.white);
             Stretch(fondo.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        }
+
+        void AdornarCielo(Transform parent)
+        {
+            Nivel3Luna.Crear(parent, new Vector2(200f, 440f), 150f);
+            lamparaJardin = Nivel3Lampara.CrearSoloLuz(parent, new Vector2(-630f, -139f), 190f);
+        }
+
+        void AdornarFrascos(Transform parent)
+        {
+            var rojo = new Color(0.95f, 0.3f, 0.15f, 0.85f);
+            var verde = new Color(0.4f, 0.9f, 0.25f, 0.85f);
+            var azul = new Color(0.2f, 0.45f, 1f, 0.85f);
+            var amarillo = new Color(1f, 0.8f, 0.2f, 0.85f);
+            var morado = new Color(0.65f, 0.3f, 1f, 0.85f);
+            var oscuro = new Color(0.8f, 0.25f, 0.9f, 0.85f);
+            FrascosMesa.Crear(parent, new[]
+            {
+                new FrascosMesa.Def(2, azul, -330f, -255f, 140f, 0.037f),
+                new FrascosMesa.Def(0, rojo, 300f, -255f, 120f, 0.015f),
+                new FrascosMesa.Def(1, verde, 420f, -255f, 140f, 0.022f),
+                new FrascosMesa.Def(3, amarillo, 545f, -255f, 120f, 0.033f),
+                new FrascosMesa.Def(4, morado, 410f, 116f, 110f, 0.057f),
+                new FrascosMesa.Def(7, oscuro, 905f, -55f, 105f, 0.010f)
+            }, -255f, -330f, -690f, 730f);
         }
 
         void BuildCast(Transform parent)
         {
-            var sombra = CreateImage(parent, "SombraMagnus", disc, new Vector2(-430f, -168f), new Vector2(130f, 26f), true);
+            sombraY = vistaJardin ? -259f : -168f;
+            Vector2 sombraPos = vistaJardin ? new Vector2(-520f, sombraY) : new Vector2(-430f, sombraY);
+            var sombra = CreateImage(parent, "SombraMagnus", disc, sombraPos, new Vector2(130f, 26f), true);
             sombra.color = new Color(0.08f, 0.04f, 0.03f, 0.35f);
             sombraRect = sombra.rectTransform;
 
@@ -481,8 +667,9 @@ namespace FluxLab
             magnusRect = cuerpo.rectTransform;
             magnusRect.anchorMin = magnusRect.anchorMax = new Vector2(0.5f, 0.5f);
             magnusRect.pivot = new Vector2(0.5f, 0.5f);
-            magnusRect.sizeDelta = new Vector2(140f, 380f);
-            magnusBase = new Vector2(-430f, 22f);
+            float altoMagnus = vistaJardin ? 540f : 380f;
+            magnusRect.sizeDelta = new Vector2(altoMagnus * 0.42f, altoMagnus);
+            magnusBase = vistaJardin ? new Vector2(-520f, -65f) : new Vector2(-430f, 22f);
             magnusRect.anchoredPosition = magnusBase;
 
             if (AjustesJuego.Accesorio == 1)
@@ -490,6 +677,343 @@ namespace FluxLab
                 var frasco = CreateImage(cuerpo.transform, "Frasco", Spr("frasco_morado"), new Vector2(-36f, -28f), new Vector2(36f, 48f), true);
                 frasco.rectTransform.localScale = Vector3.one;
             }
+
+            if (vistaJardin)
+                CambiarMagnusPorPoses(parent);
+        }
+
+        void CambiarMagnusPorPoses(Transform parent)
+        {
+            PersonalizacionMagnus aspecto = PersonalizacionMagnus.Guardada;
+            AspectoPoses.Precargar(aspecto, PoseMagnus.Normal, PoseMagnus.Riendo, PoseMagnus.Sorprendido, PoseMagnus.Saltando, PoseMagnus.Triste);
+            Vector2 pies = new Vector2(magnusBase.x, sombraY);
+            magnusVivo = MagnusAnimado.Crear(parent, pies, magnusRect.sizeDelta.y, aspecto, AjustesJuego.Accesorio == 1);
+            magnusRect.gameObject.SetActive(false);
+            if (sombraRect != null)
+                sombraRect.gameObject.SetActive(false);
+        }
+
+        void PrepararCapaFrascos()
+        {
+            var capa = new GameObject("CapaFrascos", typeof(RectTransform));
+            capa.transform.SetParent(lienzo, false);
+            var rect = capa.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = Vector2.zero;
+            capaFrascos = capa.transform;
+            efectosFrascos = capa.AddComponent<ParticulasUI>();
+        }
+
+        void LanzarFrasco(IngredientKind kind, RectTransform carta, System.Action alCaer)
+        {
+            Sprite frasco = ImagenesFrascos.DeIngrediente(kind);
+            if (frasco == null)
+                frasco = Spr(catalog[kind].Sprite);
+            Vector2 desde = carta.anchoredPosition + new Vector2(0f, 30f);
+            FrascoVertido.Lanzar(capaFrascos, efectosFrascos, frasco, desde, bocaCaldero, catalog[kind].Glow, 0.9f, alCaer);
+        }
+
+        void PonerBuho(Transform parent)
+        {
+            buho = BuhoLuma.Crear(parent, new Vector2(730f, -55f), 270f);
+        }
+
+        void EnfocarReceta(bool grande)
+        {
+            if (!vistaJardin || tableroReceta == null)
+                return;
+            if (focoReceta != null)
+                StopCoroutine(focoReceta);
+            focoReceta = StartCoroutine(MoverReceta(grande));
+        }
+
+        IEnumerator MoverReceta(bool grande)
+        {
+            Vector2 desde = tableroReceta.anchoredPosition;
+            Vector2 hasta = grande ? RecetaGrande : recetaQuieta;
+            float escalaDesde = tableroReceta.localScale.x;
+            float escalaHasta = grande ? EscalaRecetaGrande : 1f;
+            float brilloDesde = brilloReceta != null ? brilloReceta.color.a : 0f;
+            float brilloHasta = grande ? 0.55f : 0f;
+            const float duracion = 0.45f;
+            float reloj = 0f;
+            while (reloj < duracion)
+            {
+                if (tableroReceta == null)
+                    yield break;
+                reloj += Time.deltaTime;
+                float k = Mathf.Clamp01(reloj / duracion);
+                const float c1 = 1.4f;
+                float u = k - 1f;
+                float rebote = 1f + (c1 + 1f) * u * u * u + c1 * u * u;
+                Vector2 pos = Vector2.LerpUnclamped(desde, hasta, rebote);
+                float escala = Mathf.LerpUnclamped(escalaDesde, escalaHasta, rebote);
+                tableroReceta.anchoredPosition = pos;
+                tableroReceta.localScale = Vector3.one * escala;
+                if (brilloReceta != null)
+                {
+                    brilloReceta.rectTransform.anchoredPosition = pos;
+                    brilloReceta.rectTransform.localScale = Vector3.one * escala;
+                    Color c = brilloReceta.color;
+                    c.a = Mathf.Lerp(brilloDesde, brilloHasta, k);
+                    brilloReceta.color = c;
+                }
+
+                yield return null;
+            }
+
+            focoReceta = null;
+        }
+
+        void ReaccionVertido(IngredientKind kind, bool sigue)
+        {
+            Color tinte = catalog[kind].Glow;
+            if (cauldronGlow != null)
+            {
+                Color mezcla = tinte;
+                mezcla.a = 0.78f;
+                cauldronGlow.color = mezcla;
+            }
+
+            StartCoroutine(DestelloBoca(tinte));
+            if (sigue)
+                StartCoroutine(PulsoCaldero(1.1f, 0.26f));
+
+            Transform padre = mundoJardin != null ? mundoJardin : lienzo;
+            Anillo(padre, bocaCaldero, tinte, 0.42f, 3.4f);
+            Anillo(padre, bocaCaldero, Color.Lerp(tinte, Color.white, 0.45f), 0.65f, 4.6f);
+            Chispas(padre, bocaCaldero, 10, tinte, 160f, 380f);
+            StartCoroutine(HumoJardin(padre, bocaCaldero, tinte, 5, 0.45f));
+
+            if (efectosFrascos != null)
+            {
+                Color claro = Color.Lerp(tinte, Color.white, 0.25f);
+                efectosFrascos.Una(FormasUI.Destello, bocaCaldero + new Vector2(0f, 16f), new Vector2(240f, 240f),
+                    new Color(1f, 1f, 1f, 0.9f), Vector2.zero, 0.28f, 0f, 0f, 1.1f);
+                efectosFrascos.Una(FormasUI.Remolino, bocaCaldero, new Vector2(170f, 78f),
+                    new Color(tinte.r, tinte.g, tinte.b, 0.8f), Vector2.zero, 0.75f, 0f, 280f, 0.35f);
+                efectosFrascos.Emitir(new ParticulasUI.Rafaga
+                {
+                    forma = FormasUI.Punto,
+                    cantidad = 16,
+                    centro = bocaCaldero,
+                    dispersion = new Vector2(36f, 8f),
+                    color = claro,
+                    angulo = new Vector2(18f, 162f),
+                    rapidez = new Vector2(200f, 460f),
+                    vida = new Vector2(0.45f, 0.8f),
+                    tamano = new Vector2(8f, 18f),
+                    gravedad = 820f
+                });
+                efectosFrascos.Emitir(new ParticulasUI.Rafaga
+                {
+                    forma = FormasUI.Humo,
+                    cantidad = 7,
+                    centro = bocaCaldero + new Vector2(0f, 8f),
+                    dispersion = new Vector2(48f, 6f),
+                    color = new Color(tinte.r, tinte.g, tinte.b, 0.55f),
+                    angulo = new Vector2(78f, 102f),
+                    rapidez = new Vector2(50f, 130f),
+                    vida = new Vector2(0.7f, 1.3f),
+                    tamano = new Vector2(40f, 78f),
+                    gravedad = -30f,
+                    crece = 0.9f
+                });
+                SaborDelVertido(kind, tinte);
+            }
+
+            if (sigue)
+                buho?.Verter();
+        }
+
+        void SaborDelVertido(IngredientKind kind, Color tinte)
+        {
+            switch (kind)
+            {
+                case IngredientKind.Fuego:
+                    efectosFrascos.Emitir(new ParticulasUI.Rafaga
+                    {
+                        forma = FormasUI.Humo,
+                        cantidad = 12,
+                        centro = bocaCaldero + new Vector2(0f, 12f),
+                        dispersion = new Vector2(40f, 6f),
+                        color = new Color(1f, 0.45f, 0.08f, 0.9f),
+                        angulo = new Vector2(82f, 98f),
+                        rapidez = new Vector2(140f, 280f),
+                        vida = new Vector2(0.45f, 0.8f),
+                        tamano = new Vector2(36f, 70f),
+                        crece = -0.4f
+                    });
+                    break;
+                case IngredientKind.Gota:
+                    efectosFrascos.Emitir(new ParticulasUI.Rafaga
+                    {
+                        forma = FormasUI.Punto,
+                        cantidad = 14,
+                        centro = bocaCaldero,
+                        dispersion = new Vector2(24f, 4f),
+                        color = Color.Lerp(tinte, Color.white, 0.35f),
+                        angulo = new Vector2(10f, 170f),
+                        rapidez = new Vector2(240f, 520f),
+                        vida = new Vector2(0.4f, 0.75f),
+                        tamano = new Vector2(10f, 20f),
+                        gravedad = 900f
+                    });
+                    break;
+                case IngredientKind.Polvo:
+                    efectosFrascos.Emitir(new ParticulasUI.Rafaga
+                    {
+                        forma = FormasUI.Destello,
+                        cantidad = 10,
+                        centro = bocaCaldero + new Vector2(0f, 20f),
+                        dispersion = new Vector2(50f, 10f),
+                        color = new Color(1f, 0.9f, 0.45f, 1f),
+                        angulo = new Vector2(60f, 120f),
+                        rapidez = new Vector2(80f, 180f),
+                        vida = new Vector2(0.6f, 1.1f),
+                        tamano = new Vector2(16f, 30f),
+                        gravedad = -40f,
+                        giro = 120f
+                    });
+                    break;
+                case IngredientKind.Hierba:
+                    efectosFrascos.Emitir(new ParticulasUI.Rafaga
+                    {
+                        forma = FormasUI.Hoja,
+                        cantidad = 10,
+                        centro = bocaCaldero + new Vector2(0f, 10f),
+                        dispersion = new Vector2(40f, 8f),
+                        color = new Color(0.45f, 0.9f, 0.3f, 0.95f),
+                        angulo = new Vector2(50f, 130f),
+                        rapidez = new Vector2(80f, 200f),
+                        vida = new Vector2(0.7f, 1.2f),
+                        tamano = new Vector2(18f, 32f),
+                        gravedad = 180f,
+                        giro = 160f
+                    });
+                    break;
+                case IngredientKind.Cristal:
+                    efectosFrascos.Una(FormasUI.Destello, bocaCaldero, new Vector2(200f, 200f),
+                        new Color(0.75f, 0.45f, 1f, 0.85f), Vector2.zero, 0.4f, 0f, 0f, 1.4f);
+                    break;
+                case IngredientKind.Lagrima:
+                    efectosFrascos.Emitir(new ParticulasUI.Rafaga
+                    {
+                        forma = FormasUI.Elipse,
+                        cantidad = 8,
+                        centro = bocaCaldero,
+                        dispersion = new Vector2(20f, 4f),
+                        color = new Color(1f, 0.7f, 0.35f, 0.9f),
+                        angulo = new Vector2(40f, 140f),
+                        rapidez = new Vector2(160f, 320f),
+                        vida = new Vector2(0.5f, 0.85f),
+                        tamano = new Vector2(12f, 22f),
+                        gravedad = 700f
+                    });
+                    break;
+            }
+        }
+
+        IEnumerator DestelloBoca(Color tinte)
+        {
+            if (destelloCaldero == null)
+                yield break;
+            float t = 0f;
+            while (t < 1f)
+            {
+                t += Time.deltaTime / 0.4f;
+                float resto = 1f - Mathf.Clamp01(t);
+                destelloCaldero.color = new Color(tinte.r, tinte.g, tinte.b, 0.8f * resto * resto);
+                yield return null;
+            }
+
+            destelloCaldero.color = new Color(1f, 1f, 1f, 0f);
+        }
+
+        IEnumerator ConteoInicial()
+        {
+            var raiz = new GameObject("Conteo", typeof(RectTransform));
+            raiz.transform.SetParent(lienzo, false);
+            Stretch(raiz.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            raiz.transform.SetAsLastSibling();
+
+            var velo = CreateImage(raiz.transform, "Velo", solid, Vector2.zero, Vector2.zero, false);
+            Stretch(velo.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            velo.color = new Color(0.06f, 0.03f, 0.08f, 0f);
+            velo.raycastTarget = true;
+
+            float t = 0f;
+            while (t < 0.25f)
+            {
+                t += Time.deltaTime;
+                velo.color = new Color(0.06f, 0.03f, 0.08f, 0.6f * Mathf.Clamp01(t / 0.25f));
+                yield return null;
+            }
+
+            yield return NumeroConteo(raiz.transform, "3", Hex("#ff7a59"));
+            yield return NumeroConteo(raiz.transform, "2", Hex("#ffd159"));
+            yield return NumeroConteo(raiz.transform, "1", Hex("#7fe06b"));
+            yield return GritoConteo(raiz.transform, "¡Vamos, atentooo!");
+
+            Destroy(raiz);
+        }
+
+        IEnumerator NumeroConteo(Transform padre, string cifra, Color color)
+        {
+            PlayOne("click");
+            var halo = CreateImage(padre, "Halo", disc, new Vector2(0f, 60f), new Vector2(520f, 520f), false);
+            halo.color = new Color(color.r, color.g, color.b, 0f);
+            var numero = MakeText(padre, cifra, 220, color, FontStyle.Bold);
+            numero.rectTransform.anchoredPosition = new Vector2(0f, 60f);
+            numero.rectTransform.sizeDelta = new Vector2(500f, 320f);
+            AddOutline(numero, new Color(0.15f, 0.05f, 0.1f, 1f));
+            numero.GetComponent<Outline>().effectDistance = new Vector2(6f, -6f);
+
+            float k = 0f;
+            while (k < 0.8f)
+            {
+                k += Time.deltaTime / 0.8f;
+                float entrada = Mathf.Clamp01(k / 0.4f);
+                float salida = Mathf.Clamp01((k - 0.78f) / 0.22f);
+                float rebote = 1f + 2.7f * Mathf.Pow(entrada - 1f, 3f) + 1.7f * Mathf.Pow(entrada - 1f, 2f);
+                float escala = Mathf.LerpUnclamped(2.4f, 1f, rebote) * Mathf.Lerp(1f, 0.55f, salida);
+                numero.rectTransform.localScale = Vector3.one * Mathf.Max(0.01f, escala);
+                numero.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-24f, 0f, Mathf.Clamp01(entrada * 1.4f)));
+                float alfa = Mathf.Clamp01(entrada * 3f) * (1f - salida);
+                numero.color = new Color(color.r, color.g, color.b, alfa);
+                halo.color = new Color(color.r, color.g, color.b, 0.45f * alfa);
+                halo.rectTransform.localScale = Vector3.one * (0.65f + entrada * 0.45f);
+                yield return null;
+            }
+
+            Destroy(numero.gameObject);
+            Destroy(halo.gameObject);
+        }
+
+        IEnumerator GritoConteo(Transform padre, string frase)
+        {
+            PlayOne("hechizo");
+            var texto = MakeText(padre, frase, 92, Color.white, FontStyle.Bold);
+            texto.rectTransform.anchoredPosition = new Vector2(0f, 60f);
+            texto.rectTransform.sizeDelta = new Vector2(1400f, 180f);
+            texto.horizontalOverflow = HorizontalWrapMode.Overflow;
+            AddOutline(texto, Hex("#732699"));
+            texto.GetComponent<Outline>().effectDistance = new Vector2(5f, -5f);
+
+            float k = 0f;
+            while (k < 1.15f)
+            {
+                k += Time.deltaTime / 1.15f;
+                float entrada = Mathf.Clamp01(k / 0.28f);
+                float salida = Mathf.Clamp01((k - 0.72f) / 0.28f);
+                float temblor = k > 0.28f && k < 0.72f ? Mathf.Sin(k * 80f) * 5f : 0f;
+                texto.rectTransform.localScale = Vector3.one * Mathf.Lerp(0.35f, 1f, entrada);
+                texto.rectTransform.anchoredPosition = new Vector2(temblor, 60f + salida * 120f);
+                texto.color = new Color(1f, 1f, 1f, 1f - salida);
+                yield return null;
+            }
+
+            Destroy(texto.gameObject);
         }
 
         void BuildCauldron(Transform parent)
@@ -499,11 +1023,25 @@ namespace FluxLab
             cauldronRect = vivo.GetComponent<RectTransform>();
             cauldronRect.anchorMin = cauldronRect.anchorMax = new Vector2(0.5f, 0.5f);
             cauldronRect.pivot = new Vector2(0.5f, 0.5f);
-            cauldronRect.sizeDelta = new Vector2(280f, 160f);
-            cauldronBase = new Vector2(8f, 128f);
+            Sprite dibujoCaldero = vistaJardin ? Nivel3UI.SpriteOpcional("FluxLab/Nivel3/caldero") : null;
+            float altoCaldero = dibujoCaldero != null ? 330f : 160f;
+            float anchoCaldero = dibujoCaldero != null ? altoCaldero * dibujoCaldero.rect.width / dibujoCaldero.rect.height : 280f;
+            float centroY = dibujoCaldero != null ? -255f - altoCaldero * 0.057f + altoCaldero * 0.5f : 128f;
+            cauldronRect.sizeDelta = new Vector2(anchoCaldero, altoCaldero);
+            cauldronBase = new Vector2(dibujoCaldero != null ? 0f : 8f, centroY);
             cauldronRect.anchoredPosition = cauldronBase;
+            float yBrillo = dibujoCaldero != null ? altoCaldero * 0.252f : 8f;
+            bocaCaldero = cauldronBase + new Vector2(0f, yBrillo);
+            if (dibujoCaldero != null)
+            {
+                cuerpoCaldero = CreateImage(vivo.transform, "Cuerpo", dibujoCaldero, Vector2.zero, new Vector2(anchoCaldero, altoCaldero), true);
+                cuerpoCaldero.transform.SetAsFirstSibling();
+                yHuecoCaldero = centroY + altoCaldero * 0.252f + 150f;
+                destelloCaldero = CreateImage(vivo.transform, "Destello", disc, new Vector2(0f, yBrillo), new Vector2(anchoCaldero * 1.7f, altoCaldero * 1.3f), true);
+                destelloCaldero.color = new Color(1f, 1f, 1f, 0f);
+            }
 
-            cauldronGlow = CreateImage(vivo.transform, "Brillo", disc, new Vector2(0f, 8f), new Vector2(210f, 72f), true);
+            cauldronGlow = CreateImage(vivo.transform, "Brillo", disc, new Vector2(0f, yBrillo), dibujoCaldero != null ? new Vector2(anchoCaldero * 0.9f, 80f) : new Vector2(210f, 72f), true);
             cauldronGlow.color = new Color(0.45f, 0.9f, 0.5f, 0.28f);
 
             SpawnBubble(vivo.transform, "burbuja_a", new Vector2(-28f, 4f), new Vector2(34f, 34f), 28f, 10f);
@@ -527,14 +1065,27 @@ namespace FluxLab
 
         void BuildRecipe(Transform parent)
         {
-            var board = CreateImage(parent, "Receta", SpriteArchivo("Menu/pergamino.png"), new Vector2(30f, 368f), new Vector2(700f, 286f), true);
+            Sprite pergamino = vistaJardin ? Nivel3UI.SpriteUI("pergamino") : null;
+            bool arte = pergamino != null;
+            yHuecoReceta = arte ? 10f : -6f;
+            if (vistaJardin)
+            {
+                brilloReceta = CreateImage(parent, "BrilloReceta", Nivel3UI.LuzSuave(), new Vector2(20f, 348f), new Vector2(860f, 500f), false);
+                brilloReceta.color = new Color(1f, 0.9f, 0.55f, 0f);
+                brilloReceta.raycastTarget = false;
+            }
+            var board = CreateImage(parent, "Receta", arte ? pergamino : SpriteArchivo("Menu/pergamino.png"),
+                arte ? new Vector2(20f, 348f) : new Vector2(30f, 368f),
+                arte ? new Vector2(700f, 375f) : new Vector2(700f, 286f), true);
+            tableroReceta = board.rectTransform;
+            recetaQuieta = tableroReceta.anchoredPosition;
 
-            var title = MakeText(board.transform, "La receta", 32, Hex("#5a3b24"), FontStyle.Bold);
-            title.rectTransform.anchoredPosition = new Vector2(0f, 92f);
+            var title = MakeText(board.transform, "La receta", arte ? 40 : 32, Hex("#5a3b24"), FontStyle.Bold);
+            title.rectTransform.anchoredPosition = new Vector2(0f, arte ? 118f : 92f);
             title.rectTransform.sizeDelta = new Vector2(520f, 42f);
 
-            promptLabel = MakeText(board.transform, "Memoriza el orden, de izquierda a derecha.", 22, Hex("#5a3b24"), FontStyle.Normal);
-            promptLabel.rectTransform.anchoredPosition = new Vector2(0f, 54f);
+            promptLabel = MakeText(board.transform, "Memoriza el orden, de izquierda a derecha.", arte ? 24 : 22, Hex("#5a3b24"), FontStyle.Normal);
+            promptLabel.rectTransform.anchoredPosition = new Vector2(0f, arte ? 74f : 54f);
             promptLabel.rectTransform.sizeDelta = new Vector2(560f, 34f);
 
             recipeGems = new Image[MaxReceta];
@@ -551,20 +1102,20 @@ namespace FluxLab
                 var number = MakeText(estacion.transform, (i + 1).ToString(), 18, Hex("#8a6848"), FontStyle.Bold);
                 number.rectTransform.anchoredPosition = new Vector2(-34f, 28f);
                 number.rectTransform.sizeDelta = new Vector2(28f, 24f);
-                recipeNames[i] = MakeText(estacion.transform, "?", 18, Hex("#5a3b24"), FontStyle.Bold);
-                recipeNames[i].rectTransform.anchoredPosition = new Vector2(0f, -52f);
+                recipeNames[i] = MakeText(estacion.transform, "?", arte ? 22 : 18, Hex("#5a3b24"), FontStyle.Bold);
+                recipeNames[i].rectTransform.anchoredPosition = new Vector2(0f, arte ? -60f : -52f);
                 recipeNames[i].rectTransform.sizeDelta = new Vector2(120f, 26f);
             }
 
             AcomodarHuecos();
 
-            timerTexto = MakeText(board.transform, "Recuerda: 5.0s", 20, Hex("#6a4b32"), FontStyle.Bold);
-            timerTexto.rectTransform.anchoredPosition = new Vector2(0f, -88f);
+            timerTexto = MakeText(board.transform, "Recuerda: 5.0s", arte ? 26 : 20, Hex("#6a4b32"), FontStyle.Bold);
+            timerTexto.rectTransform.anchoredPosition = new Vector2(0f, arte ? -102f : -88f);
             timerTexto.rectTransform.sizeDelta = new Vector2(420f, 28f);
 
-            var track = CreateImage(board.transform, "Tiempo", solid, new Vector2(0f, -114f), new Vector2(460f, 14f), false);
+            var track = CreateImage(board.transform, "Tiempo", solid, new Vector2(0f, arte ? -130f : -114f), new Vector2(arte ? 440f : 460f, arte ? 12f : 14f), false);
             track.color = Hex("#d7c3a2");
-            timerFill = CreateImage(track.transform, "Relleno", solid, Vector2.zero, new Vector2(460f, 14f), false);
+            timerFill = CreateImage(track.transform, "Relleno", solid, Vector2.zero, track.rectTransform.sizeDelta, false);
             timerFill.color = Hex("#7dce63");
             timerFill.type = Image.Type.Filled;
             timerFill.fillMethod = Image.FillMethod.Horizontal;
@@ -575,6 +1126,12 @@ namespace FluxLab
 
         void BuildTray(Transform parent)
         {
+            if (vistaJardin && Nivel3UI.SpriteUI("bandeja") != null)
+            {
+                BuildTrayJardin(parent);
+                return;
+            }
+
             var tray = CreateImage(parent, "Bandeja", Spr("panel_beige"), new Vector2(-40f, -470f), new Vector2(1280f, 168f), false);
             tray.type = Image.Type.Sliced;
             tray.color = new Color(0.91f, 0.78f, 0.58f, 0.94f);
@@ -637,8 +1194,63 @@ namespace FluxLab
             Stretch(clearLabel.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         }
 
+        void BuildTrayJardin(Transform parent)
+        {
+            const float bandejaAncho = 1509f;
+            const float bandejaAlto = 174f;
+            const float cartaAncho = 206f;
+            const float cartaAlto = 149f;
+            const float cartaCentroY = 80.5f;
+            float[] cartaCentroX = { 137f, 382f, 628f, 876f, 1123f, 1373f };
+            const float ancho = 1352f;
+            float k = ancho / bandejaAncho;
+            var centro = new Vector2(-90f, -440f);
+            var arte = Nivel3UI.SpriteUI("bandeja");
+            CreateImage(parent, "Bandeja", arte, centro, new Vector2(ancho, bandejaAlto * k), true);
+
+            for (int i = 0; i < TrayOrder.Length && i < cartaCentroX.Length; i++)
+            {
+                IngredientKind kind = TrayOrder[i];
+                Ing info = catalog[kind];
+                float cx = (cartaCentroX[i] - bandejaAncho * 0.5f) * k;
+                float cy = (bandejaAlto * 0.5f - cartaCentroY) * k;
+                var carta = CreateImage(parent, "Carta_" + kind, solid, centro + new Vector2(cx, cy), new Vector2(cartaAncho * k, cartaAlto * k), false);
+                carta.color = new Color(1f, 1f, 1f, 0.01f);
+                carta.raycastTarget = true;
+                var boton = carta.gameObject.AddComponent<Button>();
+                boton.targetGraphic = carta;
+                boton.transition = Selectable.Transition.None;
+                boton.navigation = new Navigation { mode = Navigation.Mode.None };
+                IngredientKind captured = kind;
+                boton.onClick.AddListener(() => TryAdd(captured));
+                carta.gameObject.AddComponent<HoverScale>().scale = 1.06f;
+                cartas[kind] = carta.rectTransform;
+
+                CreateImage(carta.transform, "Gema", Spr(info.Sprite), new Vector2(0f, 16f), new Vector2(64f, 64f), true);
+                var name = MakeText(carta.transform, info.Nombre, 25, Hex("#fff3da"), FontStyle.Bold);
+                name.rectTransform.anchoredPosition = new Vector2(0f, -36f);
+                name.rectTransform.sizeDelta = new Vector2(170f, 34f);
+                AddOutline(name, new Color(0.1f, 0.05f, 0.03f, 0.75f));
+                var numero = MakeText(carta.transform, (i + 1).ToString(), 22, Hex("#fff3da"), FontStyle.Bold);
+                numero.rectTransform.anchoredPosition = new Vector2(-70f, 44f);
+                numero.rectTransform.sizeDelta = new Vector2(34f, 28f);
+                AddOutline(numero, new Color(0.1f, 0.05f, 0.03f, 0.75f));
+            }
+
+            var vaciar = Nivel3UI.BotonConArte(parent, "boton_ancho", "Vaciar", new Vector2(790f, -440f), new Vector2(252f, 95f), Vaciar, 34);
+            if (vaciar.transform.childCount > 0)
+                vaciar.transform.GetChild(0).GetComponent<RectTransform>().anchoredPosition = new Vector2(26f, 0f);
+            Nivel3UI.Icono(vaciar.transform, "pocion.png", new Vector2(-66f, 0f), 48f);
+        }
+
         void BuildHud(Transform parent)
         {
+            if (vistaJardin && Nivel3UI.SpriteUI("placa_titulo") != null)
+            {
+                BuildHudJardin(parent);
+                return;
+            }
+
             var izquierda = CreateImage(parent, "PlacaTitulo", Spr("panel_beige"), new Vector2(-740f, 470f), new Vector2(340f, 86f), false);
             izquierda.type = Image.Type.Sliced;
             tituloTaller = MakeText(izquierda.transform, NivelesTaller.De(AjustesJuego.NivelSeleccionado).nombre, 20, Hex("#5a3b24"), FontStyle.Bold);
@@ -663,18 +1275,55 @@ namespace FluxLab
             scoreLabel.rectTransform.sizeDelta = new Vector2(250f, 30f);
         }
 
+        void BuildHudJardin(Transform parent)
+        {
+            Color texto = Hex("#f3e4c4");
+            Color puntos = Hex("#e6c98b");
+            Color sombra = new Color(0.1f, 0.05f, 0.03f, 0.7f);
+
+            var placaNivel = Nivel3UI.Placa(parent, "placa_titulo", new Vector2(-690f, 398f), new Vector2(460f, 137f));
+            tituloTaller = MakeText(placaNivel.transform, NivelesTaller.De(AjustesJuego.NivelSeleccionado).nombre, 36, texto, FontStyle.Normal);
+            tituloTaller.rectTransform.sizeDelta = new Vector2(400f, 90f);
+            AddOutline(tituloTaller, sombra);
+
+            var mapa = Nivel3UI.BotonConArte(parent, "boton_ancho", "Mapa", new Vector2(-790f, 282f), new Vector2(210f, 79f), VolverAlMapa, 29);
+            if (mapa.transform.childCount > 0)
+                mapa.transform.GetChild(0).GetComponent<RectTransform>().anchoredPosition = new Vector2(22f, 0f);
+            Nivel3UI.Icono(mapa.transform, "puerta.png", new Vector2(-52f, 0f), 36f);
+
+            var placaRonda = Nivel3UI.Placa(parent, "placa_ronda", new Vector2(640f, 398f), new Vector2(330f, 125f));
+            roundLabel = MakeText(placaRonda.transform, "Ronda 1 / 3", 32, texto, FontStyle.Normal);
+            roundLabel.rectTransform.anchoredPosition = new Vector2(0f, 17f);
+            roundLabel.rectTransform.sizeDelta = new Vector2(280f, 44f);
+            AddOutline(roundLabel, sombra);
+            scoreLabel = MakeText(placaRonda.transform, "Puntos: 0", 26, puntos, FontStyle.Normal);
+            scoreLabel.rectTransform.anchoredPosition = new Vector2(0f, -22f);
+            scoreLabel.rectTransform.sizeDelta = new Vector2(280f, 36f);
+            AddOutline(scoreLabel, sombra);
+        }
+
         void BuildResult(Transform parent)
         {
+            if (vistaJardin)
+            {
+                BuildResultJardin(parent);
+                return;
+            }
+
             resultRoot = new GameObject("Resultado", typeof(RectTransform));
             resultRoot.transform.SetParent(parent, false);
             Stretch(resultRoot.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             Transform raiz = resultRoot.transform;
 
-            var fondo = CreateRaw(raiz, "FondoResultado", Archivo("Menu/fondo.png"), Color.white);
+            Texture2D fondoResultado = vistaJardin ? Nivel3UI.LeerTextura("Menu/fondo_nivel3.png") : null;
+            if (fondoResultado == null)
+                fondoResultado = Archivo("Menu/fondo.png");
+            var fondo = CreateRaw(raiz, "FondoResultado", fondoResultado, Color.white);
             Stretch(fondo.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             fondo.raycastTarget = true;
 
-            var cinta = CreateImage(raiz, "Cinta", SpriteArchivo("Menu/pergamino.png"), new Vector2(0f, 455f), new Vector2(700f, 200f), true);
+            Sprite cintaSprite = vistaJardin ? Nivel3UI.SpriteUI("pergamino") : null;
+            var cinta = CreateImage(raiz, "Cinta", cintaSprite != null ? cintaSprite : SpriteArchivo("Menu/pergamino.png"), new Vector2(0f, 455f), new Vector2(700f, 200f), true);
             resultTitulo = MakeText(cinta.transform, "Laboratorio de alquimia", 30, Hex("#5a3b24"), FontStyle.Bold);
             resultTitulo.rectTransform.anchoredPosition = new Vector2(0f, 18f);
             resultTitulo.rectTransform.sizeDelta = new Vector2(420f, 40f);
@@ -755,6 +1404,300 @@ namespace FluxLab
             resultRoot.SetActive(false);
         }
 
+        void BuildResultJardin(Transform parent)
+        {
+            resultRoot = new GameObject("Resultado", typeof(RectTransform));
+            resultRoot.transform.SetParent(parent, false);
+            Stretch(resultRoot.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            Transform raiz = resultRoot.transform;
+
+            var oscuro = Nivel3UI.Imagen(raiz, "Oscuro", Nivel3UI.Solido(), Vector2.zero, Vector2.zero);
+            Nivel3UI.Estirar(oscuro.rectTransform);
+            oscuro.color = new Color(0.05f, 0.03f, 0.16f, 0.82f);
+            oscuro.raycastTarget = true;
+
+            var panel = Nivel3UI.Panel(raiz, "Tarjeta", Vector2.zero, new Vector2(1180f, 900f));
+            Color tinta = Nivel3UI.Hex("#5a3b24");
+            Color oro = Nivel3UI.Hex("#ffd86b");
+
+            resultTitulo = Nivel3UI.Texto(panel.transform, "¡Nivel completado!", 76, oro, new Vector2(0f, 340f), new Vector2(1000f, 100f), TextAnchor.MiddleCenter, true);
+            resultNivel = Nivel3UI.Texto(panel.transform, "", 36, tinta, new Vector2(0f, 262f), new Vector2(900f, 50f));
+
+            resultEstrellas = new Image[3];
+            for (int i = 0; i < 3; i++)
+            {
+                resultEstrellas[i] = Nivel3UI.Imagen(panel.transform, "Estrella" + i, Nivel3UI.Spr("gem_yellow_star"), new Vector2((i - 1) * 170f, 155f), new Vector2(140f, 140f), true);
+                resultEstrellas[i].color = new Color(0.4f, 0.35f, 0.32f, 0.55f);
+            }
+
+            resultRango = Nivel3UI.Texto(panel.transform, "", 40, oro, new Vector2(0f, 50f), new Vector2(900f, 56f), TextAnchor.MiddleCenter, true);
+            resultPuntos = Nivel3UI.Texto(panel.transform, "Puntos: 0", 48, tinta, new Vector2(0f, -10f), new Vector2(900f, 64f));
+            resultPrecision = Nivel3UI.Texto(panel.transform, "", 32, Nivel3UI.Hex("#6a4b32"), new Vector2(0f, -70f), new Vector2(980f, 44f));
+            resultTiempo = Nivel3UI.Texto(panel.transform, "", 32, Nivel3UI.Hex("#6a4b32"), new Vector2(0f, -118f), new Vector2(980f, 44f));
+            resultRacha = Nivel3UI.Texto(panel.transform, "", 32, Nivel3UI.Hex("#6a4b32"), new Vector2(0f, -166f), new Vector2(980f, 44f));
+            resultPocion = Nivel3UI.Texto(panel.transform, "", 36, Nivel3UI.Hex("#2f7a4a"), new Vector2(0f, -230f), new Vector2(1000f, 50f));
+            resultAviso = Nivel3UI.Texto(panel.transform, "", 52, oro, new Vector2(0f, -290f), new Vector2(1000f, 70f), TextAnchor.MiddleCenter, true);
+
+            var cuerpoFinal = CreateRaw(raiz, "MagnusFinal", null, Color.white);
+            magnusFinal = cuerpoFinal;
+            magnusFinal.raycastTarget = false;
+            var marcoFinal = cuerpoFinal.rectTransform;
+            marcoFinal.anchorMin = marcoFinal.anchorMax = new Vector2(0.5f, 0.5f);
+            marcoFinal.pivot = new Vector2(0.5f, 0f);
+            marcoFinal.anchoredPosition = new Vector2(-760f, -470f);
+            marcoFinal.sizeDelta = new Vector2(280f, 680f);
+
+            Nivel3UI.Boton(panel.transform, "Menú", new Vector2(-360f, -390f), new Vector2(210f, 88f), VolverAlMenu, 30);
+            Nivel3UI.Boton(panel.transform, "Reintentar", new Vector2(-110f, -390f), new Vector2(250f, 96f), BeginSession, 32);
+            siguienteImagen = Nivel3UI.Boton(panel.transform, "Siguiente nivel", new Vector2(180f, -390f), new Vector2(320f, 104f), IrAlSiguiente, 30);
+            siguienteTexto = siguienteImagen.GetComponentInChildren<Text>();
+            Nivel3UI.Boton(panel.transform, "Mapa", new Vector2(450f, -390f), new Vector2(190f, 88f), VolverAlMapa, 30);
+
+            resultRoot.SetActive(false);
+        }
+
+        void CrearFogonazo()
+        {
+            fogonazo = Nivel3UI.Imagen(lienzo, "Fogonazo", Nivel3UI.Solido(), Vector2.zero, Vector2.zero);
+            Nivel3UI.Estirar(fogonazo.rectTransform);
+            fogonazo.color = new Color(1f, 0.55f, 0.2f, 0f);
+            fogonazo.raycastTarget = false;
+
+            textoBoom = Nivel3UI.Texto(lienzo, "", 64, Nivel3UI.Hex("#ff8a66"), new Vector2(0f, 80f), new Vector2(1200f, 90f), TextAnchor.MiddleCenter, true);
+            textoBoom.color = new Color(1f, 0.54f, 0.4f, 0f);
+        }
+
+        IEnumerator ExplotarJardin()
+        {
+            if (lamparaJardin != null)
+                lamparaJardin.Sacudir();
+            StartCoroutine(FogonazoJardin());
+            StartCoroutine(SacudirMundo(0.55f, 14f));
+            StartCoroutine(AvisoBoom());
+
+            Transform padre = mundoJardin != null ? mundoJardin : lienzo;
+            Sprite disco = FrascoQuebradizo.Disco();
+            Vector2 boca = bocaCaldero;
+
+            for (int i = 0; i < 22; i++)
+            {
+                Color color = i % 2 == 0 ? new Color(0.45f, 0.95f, 0.35f, 0.95f) : new Color(1f, 0.6f, 0.15f, 0.95f);
+                Particula.Crear(padre, disco, boca + new Vector2(Random.Range(-60f, 60f), 0f), Vector2.one * Random.Range(18f, 42f), color,
+                    new Vector2(Random.Range(-380f, 380f), Random.Range(380f, 900f)), 1500f, Random.Range(0.9f, 1.3f), 0f, 0.6f);
+            }
+
+            Chispas(padre, boca, 16, new Color(1f, 0.82f, 0.3f), 320f, 720f);
+            for (int i = 0; i < 8; i++)
+            {
+                Particula.Crear(padre, disco, boca + new Vector2(Random.Range(-70f, 70f), Random.Range(0f, 30f)), Vector2.one * Random.Range(60f, 110f),
+                    new Color(0.4f, 0.37f, 0.45f, 0.7f), new Vector2(Random.Range(-60f, 60f), Random.Range(90f, 170f)), -30f, Random.Range(1.3f, 1.8f), 0f, 2.3f);
+            }
+
+            Anillo(padre, boca, new Color(1f, 0.6f, 0.2f), 0.5f, 5f);
+            StartCoroutine(PulsoCaldero(1.25f, 0.3f));
+
+            float t = 0f;
+            while (t < 1f)
+            {
+                t += Time.deltaTime / 0.55f;
+                float resto = 1f - Mathf.Clamp01(t);
+                if (destelloCaldero != null)
+                    destelloCaldero.color = new Color(1f, 0.95f, 0.8f, 0.95f * resto * resto);
+                if (cauldronRect != null)
+                    cauldronRect.anchoredPosition = cauldronBase + Random.insideUnitCircle * (18f * resto);
+                if (cuerpoCaldero != null)
+                {
+                    float hollin = Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(t));
+                    cuerpoCaldero.color = new Color(hollin, hollin * 0.95f, hollin * 0.95f, 1f);
+                }
+
+                yield return null;
+            }
+
+            if (cauldronRect != null)
+                cauldronRect.anchoredPosition = cauldronBase;
+            if (destelloCaldero != null)
+                destelloCaldero.color = new Color(1f, 1f, 1f, 0f);
+            if (cuerpoCaldero != null)
+                cuerpoCaldero.color = Color.white;
+        }
+
+        IEnumerator TriunfoJardin()
+        {
+            Transform padre = mundoJardin != null ? mundoJardin : lienzo;
+            Vector2 boca = bocaCaldero;
+            if (cauldronGlow != null)
+                cauldronGlow.color = new Color(1f, 0.85f, 0.3f, 0.7f);
+            Chispas(padre, boca, 30, new Color(1f, 0.92f, 0.5f), 200f, 520f);
+            Anillo(padre, boca, new Color(1f, 0.9f, 0.4f), 0.9f, 4.5f);
+            Anillo(padre, boca, new Color(1f, 1f, 0.8f), 1.3f, 6.5f);
+            StartCoroutine(HumoJardin(padre, boca, new Color(1f, 0.85f, 0.3f), 16, 1.1f));
+            PlayOne("hechizo");
+            yield return PulsoCaldero(1.14f, 0.35f);
+        }
+
+        IEnumerator FogonazoJardin()
+        {
+            if (fogonazo == null)
+                yield break;
+            fogonazo.transform.SetAsLastSibling();
+            float t = 0f;
+            while (t < 1f)
+            {
+                t += Time.deltaTime / 0.45f;
+                float resto = 1f - Mathf.Clamp01(t);
+                fogonazo.color = new Color(1f, 0.55f, 0.2f, 0.5f * resto * resto);
+                yield return null;
+            }
+
+            fogonazo.color = new Color(1f, 0.55f, 0.2f, 0f);
+        }
+
+        IEnumerator SacudirMundo(float duracion, float fuerza)
+        {
+            if (mundoJardin == null)
+                yield break;
+            float t = 0f;
+            while (t < 1f)
+            {
+                t += Time.deltaTime / duracion;
+                float resto = 1f - Mathf.Clamp01(t);
+                mundoJardin.anchoredPosition = Random.insideUnitCircle * (fuerza * resto);
+                yield return null;
+            }
+
+            mundoJardin.anchoredPosition = Vector2.zero;
+        }
+
+        IEnumerator AvisoBoom()
+        {
+            if (textoBoom == null)
+                yield break;
+            string[] frases =
+            {
+                "¡Ese no era! ¡BOOM!",
+                "¡Uy! Ese ingrediente no iba ahí.",
+                "¡El caldero no lo aceptó!"
+            };
+            textoBoom.text = frases[Random.Range(0, frases.Length)];
+            textoBoom.transform.SetAsLastSibling();
+            Color color = Nivel3UI.Hex("#ff8a66");
+            float t = 0f;
+            while (t < 1f)
+            {
+                t += Time.deltaTime / 0.18f;
+                float k = Mathf.Clamp01(t);
+                textoBoom.rectTransform.localScale = Vector3.one * Mathf.Lerp(0.6f, 1f, k);
+                textoBoom.color = new Color(color.r, color.g, color.b, k);
+                yield return null;
+            }
+
+            yield return new WaitForSeconds(1.5f);
+            t = 0f;
+            while (t < 1f)
+            {
+                t += Time.deltaTime / 0.35f;
+                textoBoom.color = new Color(color.r, color.g, color.b, 1f - Mathf.Clamp01(t));
+                yield return null;
+            }
+
+            textoBoom.color = new Color(color.r, color.g, color.b, 0f);
+        }
+
+        void Chispas(Transform padre, Vector2 boca, int cantidad, Color color, float velocidadMin, float velocidadMax)
+        {
+            Sprite estrella = FrascoBrillante.Estrella();
+            for (int i = 0; i < cantidad; i++)
+            {
+                float angulo = Random.Range(0.15f, Mathf.PI - 0.15f);
+                float rapidez = Random.Range(velocidadMin, velocidadMax);
+                Color c = Color.Lerp(color, Color.white, Random.Range(0f, 0.4f));
+                Particula.Crear(padre, estrella, boca + new Vector2(Random.Range(-50f, 50f), 0f), Vector2.one * Random.Range(22f, 44f), c,
+                    new Vector2(Mathf.Cos(angulo) * rapidez, Mathf.Sin(angulo) * rapidez), 380f, Random.Range(0.7f, 1.1f), Random.Range(-300f, 300f), 0.1f);
+            }
+        }
+
+        void Anillo(Transform padre, Vector2 boca, Color color, float duracion, float crecimiento)
+        {
+            color.a = 0.55f;
+            Particula.Crear(padre, Nivel3UI.LuzSuave(), boca, Vector2.one * 90f, color, Vector2.zero, 0f, duracion, 0f, crecimiento);
+        }
+
+        IEnumerator HumoJardin(Transform padre, Vector2 boca, Color color, int bocanadas, float segundos)
+        {
+            Color humo = Color.Lerp(color, Color.white, 0.15f);
+            humo.a = 0.6f;
+            float espera = segundos / Mathf.Max(1, bocanadas);
+            for (int i = 0; i < bocanadas; i++)
+            {
+                Particula.Crear(padre, Nivel3UI.LuzSuave(), boca + new Vector2(Random.Range(-40f, 40f), Random.Range(-6f, 10f)),
+                    Vector2.one * Random.Range(90f, 150f), humo, new Vector2(Random.Range(-28f, 28f), Random.Range(90f, 170f)),
+                    -18f, Random.Range(1.5f, 2.2f), Random.Range(-20f, 20f), 2.4f);
+                yield return new WaitForSeconds(espera);
+            }
+        }
+
+        IEnumerator PulsoCaldero(float escala, float segundos)
+        {
+            if (cauldronRect == null)
+                yield break;
+            float t = 0f;
+            while (t < 1f)
+            {
+                t += Time.deltaTime / segundos;
+                float s = 1f + (escala - 1f) * Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI);
+                cauldronRect.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+
+            cauldronRect.localScale = Vector3.one;
+        }
+
+        IEnumerator EncenderEstrellas(int estrellas)
+        {
+            PlayOne("hechizo");
+            for (int i = 0; i < estrellas; i++)
+            {
+                yield return new WaitForSeconds(0.5f);
+                if (resultRoot == null || !resultRoot.activeSelf || resultEstrellas == null)
+                    yield break;
+                resultEstrellas[i].color = Color.white;
+                StartCoroutine(Aparecer(resultEstrellas[i].rectTransform));
+                PlayOne("acierto");
+                for (int c = 0; c < 10; c++)
+                {
+                    Particula.Crear(resultEstrellas[i].transform.parent, FrascoBrillante.Estrella(), resultEstrellas[i].rectTransform.anchoredPosition,
+                        Vector2.one * Random.Range(24f, 46f), new Color(1f, 0.92f, 0.5f), new Vector2(Random.Range(-260f, 260f), Random.Range(80f, 360f)),
+                        420f, Random.Range(0.6f, 1f), Random.Range(-300f, 300f), 0.1f);
+                }
+            }
+
+            while (resultRoot != null && resultRoot.activeSelf && estrellas > 0)
+            {
+                Particula.Crear(resultRoot.transform, FrascoBrillante.Estrella(), new Vector2(Random.Range(-950f, 950f), 600f),
+                    Vector2.one * Random.Range(22f, 44f), Color.Lerp(new Color(1f, 0.9f, 0.5f), new Color(0.7f, 0.9f, 1f), Random.value),
+                    new Vector2(Random.Range(-30f, 30f), Random.Range(-160f, -300f)), 0f, Random.Range(3f, 4.5f), Random.Range(-90f, 90f), 0.5f)
+                    .transform.SetSiblingIndex(1);
+                yield return new WaitForSeconds(0.14f);
+            }
+        }
+
+        IEnumerator Aparecer(RectTransform rect)
+        {
+            float t = 0f;
+            while (t < 1f)
+            {
+                t += Time.deltaTime / 0.22f;
+                if (rect == null)
+                    yield break;
+                rect.localScale = Vector3.one * Mathf.Lerp(0.4f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t)));
+                yield return null;
+            }
+
+            if (rect != null)
+                rect.localScale = Vector3.one;
+        }
+
         Text LineaResultado(Transform padre, float y)
         {
             var punto = CreateImage(padre, "Marca", disc, new Vector2(-150f, y), new Vector2(18f, 18f), true);
@@ -779,8 +1722,53 @@ namespace FluxLab
             return imagen;
         }
 
+        void PonerMagnusFinal(int estrellas)
+        {
+            if (magnusFinal == null)
+                return;
+
+            magnusFinalCelebra = estrellas >= 2;
+            PoseMagnus pose = magnusFinalCelebra ? PoseMagnus.Saltando : PoseMagnus.Triste;
+            Texture2D textura = AspectoPoses.Textura(pose, PersonalizacionMagnus.Guardada);
+            if (textura == null)
+                return;
+
+            magnusFinal.texture = textura;
+            float alto = 680f;
+            float ancho = alto * textura.width / Mathf.Max(1, textura.height);
+            float x = -520f - ancho * 0.5f;
+            x = Mathf.Max(x, -948f + ancho * 0.5f);
+            var rect = magnusFinal.rectTransform;
+            rect.sizeDelta = new Vector2(ancho, alto);
+            rect.anchoredPosition = new Vector2(x, -490f);
+            rect.localScale = Vector3.one;
+            rect.localRotation = Quaternion.identity;
+        }
+
         void AnimarFestejo()
         {
+            if (vistaJardin)
+            {
+                if (magnusFinal == null || resultRoot == null || !resultRoot.activeSelf)
+                    return;
+                var rect = magnusFinal.rectTransform;
+                float baseX = rect.sizeDelta.x;
+                float x = -520f - baseX * 0.5f;
+                x = Mathf.Max(x, -948f + baseX * 0.5f);
+                if (magnusFinalCelebra)
+                {
+                    float salto = Mathf.Abs(Mathf.Sin(Time.time * 3.2f));
+                    rect.anchoredPosition = new Vector2(x, -490f + salto * 16f);
+                    rect.localScale = new Vector3(1f - salto * 0.03f, 1f + salto * 0.04f, 1f);
+                }
+                else
+                {
+                    rect.anchoredPosition = new Vector2(x, -490f);
+                    rect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 1.2f) * 1.6f);
+                }
+                return;
+            }
+
             if (resultRoot == null || !resultRoot.activeSelf)
                 return;
 
@@ -841,11 +1829,22 @@ namespace FluxLab
             animo = siguiente;
             animoReloj = 0f;
             animoDuracion = duracion;
+            if (magnusVivo == null)
+                return;
+
+            switch (siguiente)
+            {
+                case Animo.Observa: magnusVivo.Observar(); break;
+                case Animo.Remueve: magnusVivo.Remover(); break;
+                case Animo.Festeja: magnusVivo.Reir(); break;
+                case Animo.SeEquivoca: magnusVivo.Sorprenderse(); break;
+                default: magnusVivo.Quieto(); break;
+            }
         }
 
         void AnimarMagnus()
         {
-            if (magnusRect == null)
+            if (magnusVivo != null || magnusRect == null)
                 return;
 
             animoReloj += Time.deltaTime;
@@ -897,7 +1896,7 @@ namespace FluxLab
             {
                 float elevacion = Mathf.Max(0f, posicion.y - magnusBase.y);
                 float escala = Mathf.Clamp(1f - elevacion / 70f, 0.62f, 1f);
-                sombraRect.anchoredPosition = new Vector2(posicion.x, -168f);
+                sombraRect.anchoredPosition = new Vector2(posicion.x, sombraY);
                 sombraRect.localScale = new Vector3(escala, escala, 1f);
             }
         }
