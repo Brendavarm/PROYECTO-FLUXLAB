@@ -109,7 +109,7 @@ namespace FluxLab
             Transform raiz = lienzo.transform;
             var fondo = Imagen(raiz, "Fondo", artes["fondo"], Vector2.zero, 1920f);
             Estirar(fondo.rectTransform);
-            SoltarBurbujas(raiz);
+            FondoAnimado.Aplicar(fondo);
 
             ConstruirTitulo(raiz);
 

@@ -142,9 +142,11 @@ namespace FluxLab
             scaler.matchWidthOrHeight = 0.5f;
             Transform raiz = lienzo.transform;
 
-            var fondo = Imagen(raiz, "Fondo", Leer("Menu/fondo.png"), Vector2.zero, 1920f);
+            string rutaFondo = File.Exists(Path.Combine(Application.streamingAssetsPath, "Menu", "personalizacion.png"))
+                ? "Menu/personalizacion.png"
+                : "Menu/fondo.png";
+            var fondo = Imagen(raiz, "Fondo", Leer(rutaFondo), Vector2.zero, 1920f);
             Estirar(fondo.rectTransform);
-            SoltarBurbujas(raiz);
 
             Texture2D pergamino = Leer("Menu/pergamino.png");
             Texture2D boton = Leer("Menu/boton.png");
