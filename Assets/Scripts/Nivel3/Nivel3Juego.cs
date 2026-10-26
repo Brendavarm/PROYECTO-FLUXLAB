@@ -1231,15 +1231,32 @@ namespace FluxLab
             relojRoturaVida = new float[TotalVidas];
             posicionVida = new Vector2[TotalVidas];
 
-            float paso = 58f;
+            // Etiqueta encima
+            var etiqueta = Nivel3UI.Texto(raiz, "Vidas", 22,
+                new Color(0.95f, 0.82f, 0.55f, 0.9f),
+                new Vector2(470f, 308f), new Vector2(150f, 28f));
+            Nivel3UI.Contorno(etiqueta, new Color(0.1f, 0.05f, 0.03f, 0.7f), 1.5f);
+
+            // Sprite del frasco (pocion.png ya se usa en el botón Vaciar)
+            Sprite spriteVida = Nivel3UI.SpriteDeArchivo("Menu/pocion.png");
+            if (spriteVida == null)
+                spriteVida = FrascoQuebradizo.Disco();
+
+            float paso = 62f;
             float cx = 470f - (TotalVidas - 1) * paso * 0.5f;
             for (int i = 0; i < TotalVidas; i++)
             {
                 relojRoturaVida[i] = -1f;
-                posicionVida[i] = new Vector2(cx + i * paso, 279f);
-                imagenesVida[i] = Nivel3UI.Imagen(raiz, "Vida" + i, FrascoQuebradizo.Disco(),
-                    posicionVida[i], new Vector2(40f, 54f), true);
-                imagenesVida[i].color = new Color(0.9f, 0.28f, 0.15f, 1f);
+                posicionVida[i] = new Vector2(cx + i * paso, 272f);
+
+                // Glow de fondo (círculo suave detrás del frasco)
+                var glow = Nivel3UI.Imagen(raiz, "VidaGlow" + i, FrascoQuebradizo.Disco(),
+                    posicionVida[i], new Vector2(58f, 58f), true);
+                glow.color = new Color(0.9f, 0.35f, 0.1f, 0.22f);
+
+                imagenesVida[i] = Nivel3UI.Imagen(raiz, "Vida" + i, spriteVida,
+                    posicionVida[i], new Vector2(42f, 58f), true);
+                imagenesVida[i].color = Color.white;
             }
         }
 
@@ -1277,8 +1294,8 @@ namespace FluxLab
                     rect.anchoredPosition = posicionVida[i] + new Vector2(0f, -10f * caida);
                     rect.localRotation = Quaternion.Euler(0f, 0f, -80f * caida);
                     rect.localScale = Vector3.one * Mathf.Lerp(1f, 0.82f, caida);
-                    imagenesVida[i].color = Color.Lerp(new Color(0.9f, 0.28f, 0.15f, 1f),
-                        new Color(0.42f, 0.40f, 0.38f, 0.45f), caida);
+                    imagenesVida[i].color = Color.Lerp(Color.white,
+                        new Color(0.42f, 0.40f, 0.38f, 0.4f), caida);
                 }
             }
         }
