@@ -379,6 +379,7 @@ namespace FluxLab
         void Refrescar()
         {
             AplicarAspecto();
+            ActualizarColor3D();
 
             capa.gameObject.SetActive(accesorio == 2);
             capa.color = TunicaColores[color].color;
@@ -510,6 +511,31 @@ namespace FluxLab
             EncajarAlto(vista, 880f); //Es parte de el tamaño de personaje de Magnus
             vista.rectTransform.anchoredPosition = Vector2.zero;
             vista.color = Color.white;
+        }
+
+        void ActualizarColor3D()
+        {
+            try
+            {
+                // Usamos la función actualizada para Unity 6+
+                SkinnedMeshRenderer smr = UnityEngine.Object.FindAnyObjectByType<SkinnedMeshRenderer>();
+
+                if (smr != null && smr.material != null)
+                {
+                    Color tinteTunica = (color == 0) ? Color.white : TunicaColores[color].color;
+                    Color tintePelo = (pelo == 0) ? Color.white : Pelos[pelo].color;
+
+                    // Aseguramos que el cabello no sea transparente
+                    tintePelo.a = 1f;
+
+                    smr.material.SetColor("_ColorTunica", tinteTunica);
+                    smr.material.SetColor("_ColorPelo", tintePelo);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("Buscando modelo 3D: " + e.Message);
+            }
         }
 
         void PintarMuestra(int indice, bool abierto)
