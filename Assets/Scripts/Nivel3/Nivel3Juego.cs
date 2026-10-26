@@ -97,6 +97,14 @@ namespace FluxLab
         bool partidaEnCurso;
         bool memorizando;
 
+        // ---------------- Vidas ----------------
+        const int TotalVidas = 3;
+        const float DuracionRoturaVida = 0.6f;
+        int vidasRestantes;
+        Image[] imagenesVida;
+        float[] relojRoturaVida;
+        Vector2[] posicionVida;
+
         // =====================================================================================
         // Construcción
         // =====================================================================================
@@ -218,6 +226,7 @@ namespace FluxLab
 
             ConstruirBandeja();
             ConstruirMarcadores();
+            ConstruirVidas();
             ConstruirMensajes();
             ConstruirPausa();
             ConstruirConfirmacion();
@@ -639,6 +648,8 @@ namespace FluxLab
 
         void Update()
         {
+            AnimarVidas();
+
             if (!partidaEnCurso)
                 return;
 
@@ -673,6 +684,7 @@ namespace FluxLab
         {
             yield return new WaitUntil(() => empezar);
             yield return DesvanecerBienvenida();
+            yield return ConteoInicial();
 
             partidaEnCurso = true;
             botonPausa.SetActive(true);
@@ -683,6 +695,8 @@ namespace FluxLab
                 ActualizarMarcadores();
                 yield return IntroRonda(r);
                 yield return JugarRonda(r);
+                if (vidasRestantes <= 0)
+                    break;
             }
 
             partidaEnCurso = false;
@@ -741,9 +755,10 @@ namespace FluxLab
                     yield break;
                 }
 
-                // Se equivocó: el caldero explota y la ronda empieza de nuevo
+                // Se equivocó: el caldero explota y se rompe un frasco de vida
                 fallosRonda++;
                 fallosTotales++;
+                RomperVida();
                 caldero.Explotar();
                 foreach (var lampara in lamparas)
                     lampara.Sacudir();
@@ -752,9 +767,14 @@ namespace FluxLab
                 magnus.Poner(Nivel3Magnus.Animo.SeEquivoca, 0.55f);
                 mishi.Maullar();
                 Sonar("error");
-                Mensaje(Nivel3Textos.Elegir(Nivel3Textos.Error), Nivel3UI.Hex("#ff8a66"), 2.4f);
+                if (vidasRestantes > 0)
+                    Mensaje("¡Crack! Quedan " + vidasRestantes + " frasco" + (vidasRestantes == 1 ? "." : "s."), Nivel3UI.Hex("#ff8a66"), 2.4f);
+                else
+                    Mensaje("¡Ay, nooo! Se acabaron los frascos...", Nivel3UI.Hex("#ff4444"), 2.8f);
                 LimpiarHuecos();
-                yield return new WaitForSeconds(2.6f);
+                yield return new WaitForSeconds(vidasRestantes <= 0 ? 3f : 2.6f);
+                if (vidasRestantes <= 0)
+                    yield break;
             }
         }
 
@@ -1017,21 +1037,22 @@ namespace FluxLab
 
         IEnumerator Final()
         {
-            int estrellas = fallosTotales == 0 ? 3 : fallosTotales <= 2 ? 2 : 1;
+            bool sinVidas = vidasRestantes <= 0;
+            int estrellas = sinVidas ? 0 : (fallosTotales == 0 ? 3 : fallosTotales <= 2 ? 2 : 1);
             AjustesJuego.RegistrarPuntaje(puntos, rondas);
 
             bool desbloqueo = false;
-            if (AjustesJuego.NivelSeleccionado >= AjustesJuego.NivelAlcanzado && AjustesJuego.NivelAlcanzado < 5)
+            if (!sinVidas && AjustesJuego.NivelSeleccionado >= AjustesJuego.NivelAlcanzado && AjustesJuego.NivelAlcanzado < 5)
             {
                 AjustesJuego.AvanzarNivel();
                 desbloqueo = true;
             }
 
             yield return new WaitForSeconds(0.4f);
-            yield return Resultados(estrellas, desbloqueo);
+            yield return Resultados(estrellas, desbloqueo, sinVidas);
         }
 
-        IEnumerator Resultados(int estrellas, bool desbloqueo)
+        IEnumerator Resultados(int estrellas, bool desbloqueo, bool sinVidas = false)
         {
             var panelRaiz = new GameObject("Resultados", typeof(RectTransform));
             panelRaiz.transform.SetParent(raiz, false);
@@ -1045,8 +1066,8 @@ namespace FluxLab
             var tinta = Nivel3UI.Hex("#5a3b24");
             var panel = Nivel3UI.Panel(panelRaiz.transform, "Tarjeta", Vector2.zero, new Vector2(1240f, 920f));
 
-            var titulo = Nivel3UI.Texto(panel.transform, Nivel3Textos.ResultadoTitulo, 84, Nivel3UI.Hex("#ffd86b"), new Vector2(0f, 370f), new Vector2(1100f, 110f), TextAnchor.MiddleCenter, true);
-            titulo.color = Nivel3UI.Hex("#ffd86b");
+            var titulo = Nivel3UI.Texto(panel.transform, sinVidas ? "¡Ay, nooo!" : Nivel3Textos.ResultadoTitulo, 84, sinVidas ? Nivel3UI.Hex("#e84040") : Nivel3UI.Hex("#ffd86b"), new Vector2(0f, 370f), new Vector2(1100f, 110f), TextAnchor.MiddleCenter, true);
+            titulo.color = sinVidas ? Nivel3UI.Hex("#e84040") : Nivel3UI.Hex("#ffd86b");
 
             // Estrellas
             var imagenesEstrella = new Image[3];
@@ -1057,10 +1078,15 @@ namespace FluxLab
             }
 
             Nivel3UI.Texto(panel.transform, "Puntos: " + puntos, 52, tinta, new Vector2(0f, 75f), new Vector2(900f, 70f));
-            Nivel3UI.Texto(panel.transform, "Rondas superadas: " + rondas + " / " + rondas + "      Errores: " + fallosTotales, 38,
+            Nivel3UI.Texto(panel.transform, "Rondas: " + (sinVidas ? (rondaActual - 1) : rondas) + " / " + rondas + "      Errores: " + fallosTotales, 38,
                 Nivel3UI.Hex("#6a4b32"), new Vector2(0f, 10f), new Vector2(1000f, 56f));
 
-            if (desbloqueo)
+            if (sinVidas)
+            {
+                Nivel3UI.Texto(panel.transform, "Se acabaron los frascos...", 44, Nivel3UI.Hex("#c44b3a"), new Vector2(0f, -90f), new Vector2(1100f, 60f));
+                Nivel3UI.Texto(panel.transform, "¡Inténtalo otra vez, puedes hacerlo!", 36, Nivel3UI.Hex("#6a4b32"), new Vector2(0f, -155f), new Vector2(1000f, 50f));
+            }
+            else if (desbloqueo)
             {
                 Nivel3UI.Texto(panel.transform, Nivel3Textos.ResultadoDesbloqueo, 44, Nivel3UI.Hex("#2f7a4a"), new Vector2(0f, -90f), new Vector2(1100f, 60f));
                 var siguiente = Nivel3UI.Texto(panel.transform, NivelesTaller.De(Nivel + 1).nombre, 76, Nivel3UI.Hex("#d98c1f"), new Vector2(0f, -170f), new Vector2(1100f, 100f), TextAnchor.MiddleCenter, true);
@@ -1192,6 +1218,182 @@ namespace FluxLab
             }
 
             rect.localScale = Vector3.one;
+        }
+
+        // =====================================================================================
+        // Vidas (frascos de vida)
+        // =====================================================================================
+
+        void ConstruirVidas()
+        {
+            vidasRestantes = TotalVidas;
+            imagenesVida = new Image[TotalVidas];
+            relojRoturaVida = new float[TotalVidas];
+            posicionVida = new Vector2[TotalVidas];
+
+            float paso = 58f;
+            float cx = 470f - (TotalVidas - 1) * paso * 0.5f;
+            for (int i = 0; i < TotalVidas; i++)
+            {
+                relojRoturaVida[i] = -1f;
+                posicionVida[i] = new Vector2(cx + i * paso, 279f);
+                imagenesVida[i] = Nivel3UI.Imagen(raiz, "Vida" + i, FrascoQuebradizo.Disco(),
+                    posicionVida[i], new Vector2(40f, 54f), true);
+                imagenesVida[i].color = new Color(0.9f, 0.28f, 0.15f, 1f);
+            }
+        }
+
+        void RomperVida()
+        {
+            if (vidasRestantes <= 0)
+                return;
+            vidasRestantes--;
+            relojRoturaVida[vidasRestantes] = 0f;
+            Sonar("error", 0.5f);
+        }
+
+        void AnimarVidas()
+        {
+            if (imagenesVida == null)
+                return;
+
+            for (int i = 0; i < imagenesVida.Length; i++)
+            {
+                if (relojRoturaVida[i] < 0f || relojRoturaVida[i] > DuracionRoturaVida)
+                    continue;
+
+                relojRoturaVida[i] += Time.deltaTime;
+                float t = Mathf.Clamp01(relojRoturaVida[i] / DuracionRoturaVida);
+                RectTransform rect = imagenesVida[i].rectTransform;
+
+                if (t < 0.4f)
+                {
+                    float temblor = Mathf.Sin(relojRoturaVida[i] * 60f) * 5f;
+                    rect.anchoredPosition = posicionVida[i] + new Vector2(temblor, 0f);
+                }
+                else
+                {
+                    float caida = (t - 0.4f) / 0.6f;
+                    rect.anchoredPosition = posicionVida[i] + new Vector2(0f, -10f * caida);
+                    rect.localRotation = Quaternion.Euler(0f, 0f, -80f * caida);
+                    rect.localScale = Vector3.one * Mathf.Lerp(1f, 0.82f, caida);
+                    imagenesVida[i].color = Color.Lerp(new Color(0.9f, 0.28f, 0.15f, 1f),
+                        new Color(0.42f, 0.40f, 0.38f, 0.45f), caida);
+                }
+            }
+        }
+
+        // =====================================================================================
+        // Conteo 3, 2, 1, ¡Vamos, atentooo!
+        // =====================================================================================
+
+        IEnumerator ConteoInicial()
+        {
+            var velo = Nivel3UI.Imagen(raiz, "VeloConteo", Nivel3UI.Solido(), Vector2.zero, Vector2.zero);
+            Nivel3UI.Estirar(velo.rectTransform);
+            velo.color = new Color(0.04f, 0.02f, 0.1f, 0f);
+            velo.raycastTarget = true;
+
+            float fade = 0f;
+            while (fade < 1f)
+            {
+                fade += Time.deltaTime / 0.25f;
+                velo.color = new Color(0.04f, 0.02f, 0.1f, 0.68f * Mathf.Clamp01(fade));
+                yield return null;
+            }
+            velo.color = new Color(0.04f, 0.02f, 0.1f, 0.68f);
+
+            yield return MostrarNumero(velo.transform, "3", new Color(1f, 0.48f, 0.35f, 1f));
+            yield return MostrarNumero(velo.transform, "2", new Color(1f, 0.82f, 0.35f, 1f));
+            yield return MostrarNumero(velo.transform, "1", new Color(0.5f, 0.88f, 0.42f, 1f));
+            yield return MostrarGrito(velo.transform, "¡Vamos, atentooo!", new Color(0.45f, 0.15f, 0.6f, 1f));
+
+            fade = 0f;
+            while (fade < 1f)
+            {
+                fade += Time.deltaTime / 0.3f;
+                velo.color = new Color(0.04f, 0.02f, 0.1f, 0.68f * (1f - Mathf.Clamp01(fade)));
+                yield return null;
+            }
+            Destroy(velo.gameObject);
+        }
+
+        IEnumerator MostrarNumero(Transform padre, string texto, Color color)
+        {
+            Sonar("click", 1f);
+            var num = Nivel3UI.Texto(padre, texto, 220, color, new Vector2(0f, 40f), new Vector2(400f, 280f), TextAnchor.MiddleCenter, false);
+            Nivel3UI.Contorno(num, new Color(0.1f, 0.05f, 0.12f, 1f), 5f);
+            var halo = Nivel3UI.Imagen(padre, "Halo", FrascoQuebradizo.Disco(), new Vector2(0f, 40f), new Vector2(480f, 480f), false);
+            halo.color = new Color(color.r, color.g, color.b, 0f);
+
+            float t = 0f;
+            while (t < 0.85f)
+            {
+                t += Time.deltaTime;
+                float k = t / 0.85f;
+                float entrada = Mathf.Clamp01(k / 0.35f);
+                float salida = Mathf.Clamp01((k - 0.75f) / 0.25f);
+                float escala = Mathf.LerpUnclamped(2.5f, 1f, SmoothRebote(entrada)) * Mathf.Lerp(1f, 0.5f, salida);
+                num.rectTransform.localScale = Vector3.one * escala;
+                num.color = new Color(color.r, color.g, color.b, Mathf.Clamp01(entrada * 3f) * (1f - salida));
+                halo.color = new Color(color.r, color.g, color.b, 0.42f * Mathf.Clamp01(entrada * 2f) * (1f - salida));
+                halo.rectTransform.localScale = Vector3.one * (0.6f + entrada * 0.5f);
+                yield return null;
+            }
+
+            Destroy(num.gameObject);
+            Destroy(halo.gameObject);
+        }
+
+        IEnumerator MostrarGrito(Transform padre, string frase, Color colorBorde)
+        {
+            Sonar("hechizo", 1f);
+            var txt = Nivel3UI.Texto(padre, frase, 100, Color.white, new Vector2(0f, 40f), new Vector2(1500f, 180f), TextAnchor.MiddleCenter, false);
+            Nivel3UI.Contorno(txt, colorBorde, 5f);
+
+            Color[] arcoiris = {
+                new Color(1f, 0.3f, 0.3f),   new Color(1f, 0.65f, 0.2f),
+                new Color(1f, 0.95f, 0.2f),   new Color(0.3f, 0.9f, 0.3f),
+                new Color(0.2f, 0.5f, 1f),    new Color(0.6f, 0.2f, 0.9f)
+            };
+            var halos = new Image[arcoiris.Length];
+            for (int i = 0; i < halos.Length; i++)
+            {
+                halos[i] = Nivel3UI.Imagen(padre, "HaloG" + i, FrascoQuebradizo.Disco(), new Vector2(0f, 40f), Vector2.one * (260f + i * 60f), false);
+                halos[i].color = new Color(arcoiris[i].r, arcoiris[i].g, arcoiris[i].b, 0f);
+            }
+
+            float t = 0f;
+            while (t < 1.2f)
+            {
+                t += Time.deltaTime;
+                float k = t / 1.2f;
+                float entrada = Mathf.Clamp01(k / 0.25f);
+                float salida = Mathf.Clamp01((k - 0.78f) / 0.22f);
+                float temblor = k > 0.25f && k < 0.78f ? Mathf.Sin(t * 90f) * 5f : 0f;
+                txt.rectTransform.localScale = Vector3.one * (Mathf.LerpUnclamped(0.2f, 1f, SmoothRebote(entrada)) * (1f + salida * 0.3f));
+                txt.rectTransform.anchoredPosition = new Vector2(temblor, 40f + salida * 120f);
+                txt.color = new Color(1f, 1f, 1f, 1f - salida);
+                for (int i = 0; i < halos.Length; i++)
+                {
+                    Color c = arcoiris[i];
+                    halos[i].color = new Color(c.r, c.g, c.b, 0.42f * entrada * (1f - salida));
+                    halos[i].rectTransform.localScale = Vector3.one * (0.7f + entrada * 0.4f + Mathf.Sin(t * 8f + i) * 0.05f);
+                }
+                yield return null;
+            }
+
+            Destroy(txt.gameObject);
+            for (int i = 0; i < halos.Length; i++)
+                Destroy(halos[i].gameObject);
+        }
+
+        static float SmoothRebote(float t)
+        {
+            t = Mathf.Clamp01(t);
+            return t < 0.7f
+                ? Mathf.SmoothStep(0f, 1.08f, t / 0.7f)
+                : Mathf.SmoothStep(1.08f, 1f, (t - 0.7f) / 0.3f);
         }
     }
 }
