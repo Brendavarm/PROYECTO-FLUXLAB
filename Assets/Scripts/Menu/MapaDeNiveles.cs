@@ -13,11 +13,11 @@ namespace FluxLab
     {
         static readonly Vector2[] Puntos =
         {
-            new Vector2(-640f, -200f),
-            new Vector2(-500f, 230f),
-            new Vector2(-20f, 80f),
-            new Vector2(350f, 150f),
-            new Vector2(690f, 210f)
+            new Vector2(-730f, -238f),
+            new Vector2(-576f, 173f),
+            new Vector2(-77f, -86f),
+            new Vector2(211f, 108f),
+            new Vector2(634f, 216f)
         };
 
         Font font;

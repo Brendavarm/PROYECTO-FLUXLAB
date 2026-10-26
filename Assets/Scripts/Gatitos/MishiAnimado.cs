@@ -50,6 +50,7 @@ namespace FluxLab
         Sprite[] ataque;
         Sprite[] magia;
         Sprite[] dormir;
+        Sprite[] frente;
 
         // Reposo: este orden de cuadros se repite para que respire y mueva la cola.
         static readonly int[] CicloReposo = { 0, 1, 2, 1, 0, 6, 7, 6 };
@@ -78,6 +79,10 @@ namespace FluxLab
         bool bolaLanzada;
         bool distraerAlLlegar;
         bool tranquila;
+        bool guiada;
+        bool viajeGuiado;
+        int caraGuia = -1;
+        System.Action alLlegarGuia;
 
         /// <summary>
         /// En modo tranquilo Mishi solo descansa (sentada o dormida, en silencio). Quitarlo la despierta.
@@ -140,6 +145,17 @@ namespace FluxLab
 
         void Start()
         {
+            Preparar();
+        }
+
+        /// <summary>
+        /// La deja lista en el mismo frame en que se crea. Si ya arrancó, no vuelve a ponerla en el centro.
+        /// </summary>
+        public void Preparar()
+        {
+            if (imagen != null)
+                return;
+
             rect = GetComponent<RectTransform>();
             imagen = GetComponent<Image>();
 
@@ -147,6 +163,7 @@ namespace FluxLab
             ataque = Cargar("ataque", 8);
             magia = Cargar("magia", 7);
             dormir = Cargar("dormir", 6);
+            frente = Cargar("frente", 8);
 
             CrearSombra();
             CrearAudio();
@@ -155,6 +172,63 @@ namespace FluxLab
             x = (Plataformas[0].izq + Plataformas[0].der) * 0.5f;
             pisoY = Plataformas[0].y;
             Cambiar(Estado.Quieta, Random.Range(1.5f, 3f));
+        }
+
+        /// <summary>
+        /// La pone ya en el sitio, de frente, con una cara de la hoja de expresiones (frente_0 … frente_7).
+        /// No pasea ni lanza bolas: se queda explicando.
+        /// </summary>
+        public void ColocarExplicando(Vector2 pies, int cara)
+        {
+            Preparar();
+            guiada = true;
+            tranquila = true;
+            viajeGuiado = false;
+            x = pies.x;
+            pisoY = pies.y;
+            caraGuia = cara;
+            mira = -1f;
+            Cambiar(Estado.Quieta, 999f);
+        }
+
+        /// <summary>
+        /// Camina o salta hasta esos pies y, al llegar, enseña esa expresión.
+        /// <paramref name="alLlegar"/> se avisa una sola vez.
+        /// </summary>
+        public void ExplicarEn(Vector2 pies, int cara, System.Action alLlegar)
+        {
+            Preparar();
+            guiada = true;
+            tranquila = true;
+            caraGuia = cara;
+            alLlegarGuia = alLlegar;
+            mira = pies.x >= x ? 1f : -1f;
+            float distancia = Vector2.Distance(new Vector2(x, pisoY), pies);
+            if (distancia < 8f)
+            {
+                x = pies.x;
+                pisoY = pies.y;
+                mira = -1f;
+                Cambiar(Estado.Quieta, 999f);
+                AvisarGuia();
+                return;
+            }
+
+            if (Mathf.Abs(pies.y - pisoY) > 28f)
+            {
+                viajeX0 = x;
+                viajeY0 = pisoY;
+                viajeX1 = pies.x;
+                viajeY1 = pies.y;
+                viajeA = plataforma;
+                viajeGuiado = true;
+                Cambiar(Estado.Viaja, Mathf.Clamp(distancia / 780f, 0.4f, 1.15f));
+                return;
+            }
+
+            destino = pies.x;
+            pisoY = pies.y;
+            Cambiar(Estado.Camina, 0f);
         }
 
         static Sprite[] Cargar(string fila, int cantidad)
@@ -227,6 +301,12 @@ namespace FluxLab
             switch (estado)
             {
                 case Estado.Quieta:
+                    if (guiada)
+                    {
+                        cuadro = CaraFrente();
+                        mira = -1f;
+                        break;
+                    }
                     cuadro = CuadroLado(5f);
                     if (reloj >= duracion)
                         ElegirSiguiente();
@@ -239,7 +319,16 @@ namespace FluxLab
                     giro = Mathf.Sin(paso) * 3f;          // y se balancea
                     cuadro = CuadroLado(9f);
                     if (Mathf.Approximately(x, destino))
-                        Cambiar(Estado.Quieta, Random.Range(1.5f, 3.5f));
+                    {
+                        if (guiada)
+                        {
+                            mira = -1f;
+                            Cambiar(Estado.Quieta, 999f);
+                            AvisarGuia();
+                        }
+                        else
+                            Cambiar(Estado.Quieta, Random.Range(1.5f, 3.5f));
+                    }
                     break;
 
                 case Estado.Viaja:
@@ -256,12 +345,22 @@ namespace FluxLab
                         plataforma = viajeA;
                         pisoY = viajeY1;
                         x = viajeX1;
-                        Cambiar(Estado.Quieta, Random.Range(1f, 2.5f));
-                        Aterrizar();
-                        if (distraerAlLlegar)
+                        if (viajeGuiado)
                         {
-                            distraerAlLlegar = false;
-                            Distraer();
+                            viajeGuiado = false;
+                            mira = -1f;
+                            Cambiar(Estado.Quieta, 999f);
+                            AvisarGuia();
+                        }
+                        else
+                        {
+                            Cambiar(Estado.Quieta, Random.Range(1f, 2.5f));
+                            Aterrizar();
+                            if (distraerAlLlegar)
+                            {
+                                distraerAlLlegar = false;
+                                Distraer();
+                            }
                         }
                     }
                     break;
@@ -348,6 +447,8 @@ namespace FluxLab
         void PruebasDeTeclado()
         {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (guiada)
+                return;
             if (Input.GetKeyDown(KeyCode.F1)) Lanzar();
             if (Input.GetKeyDown(KeyCode.F2)) Maullar();
             if (Input.GetKeyDown(KeyCode.F3)) Cambiar(Estado.Duerme, 6f);
@@ -410,8 +511,26 @@ namespace FluxLab
 
         // ---- Qué hace Mishi y cuándo ----
 
+        Sprite CaraFrente()
+        {
+            if (frente != null && caraGuia >= 0 && caraGuia < frente.Length && frente[caraGuia] != null)
+                return frente[caraGuia];
+            return lado != null && lado.Length > 0 ? lado[0] : null;
+        }
+
+        void AvisarGuia()
+        {
+            System.Action aviso = alLlegarGuia;
+            alLlegarGuia = null;
+            if (aviso != null)
+                aviso();
+        }
+
         void ElegirSiguiente()
         {
+            if (guiada)
+                return;
+
             if (tranquila)
             {
                 // En calma sigue recorriendo el escenario, pero sin ruido ni travesuras:
