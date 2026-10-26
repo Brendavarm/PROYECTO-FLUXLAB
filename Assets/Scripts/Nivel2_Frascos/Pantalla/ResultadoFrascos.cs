@@ -14,6 +14,7 @@ namespace FluxLab.Nivel2
     {
         static readonly Color Tinta = new Color(0.29f, 0.17f, 0.09f, 1f);
         static readonly Color Dorado = new Color(1f, 0.85f, 0.4f, 1f);
+        static readonly Color Crema = new Color(0.95f, 0.89f, 0.77f, 1f);   // letra sobre la madera tallada
         static readonly Color Ambar = new Color(0.72f, 0.4f, 0.1f, 1f);
 
         struct Fila
@@ -41,6 +42,8 @@ namespace FluxLab.Nivel2
         RectTransform pocion;
         Image brilloPocion;
         RectTransform placaPocion;
+        GameObject peanaPocion;
+        Text nombrePocion;
         Text avisoTexto;
         RectTransform botones;
         Image siguienteImagen;
@@ -95,20 +98,18 @@ namespace FluxLab.Nivel2
 
         void ConstruirTitulo()
         {
-            var imagen = escena.Imagen(transform, "Titulo", escena.ArteMenu("pergamino.png", Vector4.zero), new Vector2(0f, 448f), new Vector2(820f, 190f), false);
+            // Placa tallada del título (la de la Mesa del Aprendiz), con letra crema.
+            var imagen = escena.Imagen(transform, "Titulo", escena.Placa, new Vector2(0f, 448f), new Vector2(820f, 190f), true);
             rollo = imagen.rectTransform;
-            titulo = escena.Texto(rollo, "", 46, Tinta, FontStyle.Bold);
-            titulo.rectTransform.anchoredPosition = new Vector2(0f, 16f);
-            titulo.rectTransform.sizeDelta = new Vector2(700f, 60f);
+            titulo = escena.TextoMadera(rollo, "", 46, new Vector2(0f, 18f), new Vector2(520f, 60f));
             titulo.horizontalOverflow = HorizontalWrapMode.Overflow;
-            subtitulo = escena.Texto(rollo, NivelesTaller.De(MesaDeFrascos.Nivel).nombre + "  ·  Nivel " + MesaDeFrascos.Nivel, 22, new Color(0.55f, 0.28f, 0.15f, 1f), FontStyle.Bold);
-            subtitulo.rectTransform.anchoredPosition = new Vector2(0f, -32f);
-            subtitulo.rectTransform.sizeDelta = new Vector2(700f, 32f);
+            subtitulo = escena.TextoMadera(rollo, NivelesTaller.De(MesaDeFrascos.Nivel).nombre + "  ·  Nivel " + MesaDeFrascos.Nivel, 22, new Vector2(0f, -30f), new Vector2(520f, 32f));
+            subtitulo.color = new Color(0.9f, 0.79f, 0.55f, 1f);
         }
 
         void ConstruirEstrellas()
         {
-            var madera = escena.Imagen(transform, "TablaEstrellas", escena.Madera, new Vector2(0f, 262f), new Vector2(600f, 170f), false);
+            var madera = escena.Imagen(transform, "TablaEstrellas", escena.Placa, new Vector2(0f, 262f), new Vector2(600f, 170f), true);
             tabla = madera.rectTransform;
             Sprite estrella = escena.Spr("gem_yellow_star");
             for (int i = 0; i < 3; i++)
@@ -205,17 +206,21 @@ namespace FluxLab.Nivel2
         void ConstruirPocion()
         {
             brilloPocion = escena.Imagen(transform, "BrilloPocion", FormasUI.Humo, new Vector2(160f, -170f), new Vector2(300f, 300f), false);
-            brilloPocion.color = new Color(0.85f, 0.95f, 1f, 0.6f);
+            brilloPocion.color = new Color(0.82f, 0.68f, 1f, 0.6f);
             var peana = escena.Imagen(transform, "Peana", escena.Madera, new Vector2(160f, -282f), new Vector2(230f, 52f), false);
             peana.type = Image.Type.Sliced;
             peana.pixelsPerUnitMultiplier = 4f;
-            Sprite premio = ImagenesFrascos.Premio;
-            pocion = escena.Imagen(transform, "Pocion", premio != null ? premio : escena.Spr("frasco_rojo"), new Vector2(160f, -180f), new Vector2(120f, 190f), true).rectTransform;
+            peanaPocion = peana.gameObject;
+            // La poción dibujada como los íconos de los botones (menú), para que vaya con la madera tallada.
+            Sprite premio = escena.ArteMenu("pocion.png", Vector4.zero);
+            if (premio == null)
+                premio = ImagenesFrascos.Premio;
+            pocion = escena.Imagen(transform, "Pocion", premio != null ? premio : escena.Spr("frasco_rojo"), new Vector2(160f, -180f), new Vector2(130f, 170f), true).rectTransform;
 
             var placa = escena.Imagen(transform, "PlacaPocion", escena.Madera, new Vector2(160f, -352f), new Vector2(460f, 88f), false);
             placaPocion = placa.rectTransform;
-            var nombre = escena.TextoMadera(placaPocion, "Poción ganada:  Tintura de frascos", 22, new Vector2(0f, 12f), new Vector2(420f, 30f));
-            nombre.horizontalOverflow = HorizontalWrapMode.Overflow;
+            nombrePocion = escena.TextoMadera(placaPocion, "", 22, new Vector2(0f, 12f), new Vector2(420f, 30f));
+            nombrePocion.horizontalOverflow = HorizontalWrapMode.Overflow;
             avisoTexto = escena.TextoMadera(placaPocion, "", 18, new Vector2(0f, -16f), new Vector2(420f, 26f));
             avisoTexto.color = Dorado;
             avisoTexto.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -271,7 +276,14 @@ namespace FluxLab.Nivel2
                 : estrellasGanadas == 1 ? "Chispa del taller"
                 : "El caldero espera";
             mejorTexto.text = "Mejor puntaje:  " + r.mejorPuntaje;
+            // La poción solo se gana si pasó el nivel; si no, la placa solo da el aviso.
+            nombrePocion.text = r.pasa ? "Poción ganada:  Tintura de frascos" : "Esta vez no hay poción";
             avisoTexto.text = r.aviso;
+            pocion.gameObject.SetActive(r.pasa);
+            peanaPocion.SetActive(r.pasa);
+            brilloPocion.gameObject.SetActive(r.pasa);
+            placaPocion.anchoredPosition = new Vector2(160f, r.pasa ? -352f : -250f);
+
             siguienteTexto.text = r.haySiguiente ? "SIGUIENTE NIVEL" : "AÚN CERRADO";
             siguienteImagen.color = r.haySiguiente ? Color.white : new Color(0.55f, 0.52f, 0.5f, 1f);
             siguienteImagen.GetComponent<Button>().interactable = r.haySiguiente;
@@ -279,8 +291,8 @@ namespace FluxLab.Nivel2
             // Todo empieza escondido.
             velo.color = new Color(0.05f, 0.03f, 0.07f, 0f);
             rollo.localScale = new Vector3(0.05f, 1f, 1f);
-            titulo.color = new Color(Tinta.r, Tinta.g, Tinta.b, 0f);
-            subtitulo.color = new Color(0.55f, 0.28f, 0.15f, 0f);
+            titulo.color = new Color(Crema.r, Crema.g, Crema.b, 0f);
+            subtitulo.color = new Color(0.9f, 0.79f, 0.55f, 0f);
             panelPuntos.anchoredPosition = new Vector2(-1400f, 20f);
             panelDesempeno.anchoredPosition = new Vector2(1400f, 20f);
             tabla.anchoredPosition = new Vector2(0f, 900f);
@@ -296,7 +308,7 @@ namespace FluxLab.Nivel2
                 fila.valor.text = "";
             }
             pocion.anchoredPosition = new Vector2(160f, -600f);
-            brilloPocion.color = new Color(0.85f, 0.95f, 1f, 0f);
+            brilloPocion.color = new Color(0.82f, 0.68f, 1f, 0f);
             placaPocion.localScale = Vector3.zero;
             botones.anchoredPosition = new Vector2(0f, -300f);
             magnus.gameObject.SetActive(false);
@@ -307,8 +319,8 @@ namespace FluxLab.Nivel2
             yield return Animar(0.45f, k =>
             {
                 rollo.localScale = new Vector3(Mathf.LerpUnclamped(0.05f, 1f, Rebote(k)), 1f, 1f);
-                titulo.color = new Color(Tinta.r, Tinta.g, Tinta.b, Mathf.Clamp01(k * 2f - 0.6f));
-                subtitulo.color = new Color(0.55f, 0.28f, 0.15f, Mathf.Clamp01(k * 2f - 0.8f));
+                titulo.color = new Color(Crema.r, Crema.g, Crema.b, Mathf.Clamp01(k * 2f - 0.6f));
+                subtitulo.color = new Color(0.9f, 0.79f, 0.55f, Mathf.Clamp01(k * 2f - 0.8f));
             });
 
             // 2. Los paneles entran desde los lados y la tabla de estrellas cae.
@@ -402,10 +414,11 @@ namespace FluxLab.Nivel2
             yield return Animar(0.55f, k =>
             {
                 pocion.anchoredPosition = new Vector2(160f, Mathf.LerpUnclamped(-600f, -180f, Rebote(k)));
-                brilloPocion.color = new Color(0.85f, 0.95f, 1f, 0.6f * k);
+                brilloPocion.color = new Color(0.82f, 0.68f, 1f, 0.6f * k);
                 placaPocion.localScale = Vector3.one * Mathf.LerpUnclamped(0f, 1f, Rebote(Mathf.Clamp01(k * 1.4f - 0.4f)));
             });
-            Explosion(pocion.position, new Color(0.85f, 0.95f, 1f, 1f), 20);
+            if (r.pasa)
+                Explosion(pocion.position, new Color(0.85f, 0.95f, 1f, 1f), 20);
 
             // 8. Los botones suben rebotando.
             escena.Sonar("Nivel2/pop", 0.7f);
@@ -420,7 +433,7 @@ namespace FluxLab.Nivel2
             float t = Time.time;
 
             // La poción flota y brilla.
-            if (brilloPocion.color.a > 0.05f)
+            if (gano && brilloPocion.color.a > 0.05f)
             {
                 pocion.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 1.5f) * 4f);
                 brilloPocion.rectTransform.localScale = Vector3.one * (1f + Mathf.Sin(t * 2.2f) * 0.08f);
@@ -444,18 +457,21 @@ namespace FluxLab.Nivel2
             if (haySiguiente && botones.anchoredPosition.y > -10f)
                 siguienteImagen.color = Color.Lerp(Color.white, new Color(1f, 0.92f, 0.65f, 1f), (Mathf.Sin(t * 4f) + 1f) * 0.5f);
 
-            // Confeti si pasó el nivel.
+            // Si pasó el nivel: magia suave en vez de confeti (destellos que titilan y luciérnagas doradas que suben).
             if (gano && velo.color.a > 0.3f)
             {
                 relojConfeti -= Time.deltaTime;
                 if (relojConfeti <= 0f)
                 {
-                    relojConfeti = 0.05f;
-                    Color c = Arcoiris()[Random.Range(0, 5)];
-                    bool estrella = Random.value < 0.3f;
-                    chispas.Una(estrella ? escena.Spr("gem_yellow_star") : FormasUI.Punto, new Vector2(Random.Range(-960f, 960f), 580f),
-                        Vector2.one * Random.Range(12f, 24f), c, new Vector2(Random.Range(-40f, 40f), Random.Range(-220f, -140f)),
-                        Random.Range(4f, 6f), 0f, Random.Range(-220f, 220f), 0f);
+                    relojConfeti = 0.08f;
+                    if (Random.value < 0.6f)
+                        chispas.Una(FormasUI.Destello, new Vector2(Random.Range(-940f, 940f), Random.Range(-520f, 520f)),
+                            Vector2.one * Random.Range(24f, 44f), Random.value < 0.6f ? Color.white : Dorado,
+                            new Vector2(0f, Random.Range(4f, 12f)), Random.Range(1.4f, 2.4f), 0f, 40f, -0.25f);
+                    else
+                        chispas.Una(FormasUI.Punto, new Vector2(Random.Range(-940f, 940f), -560f),
+                            Vector2.one * Random.Range(8f, 14f), new Color(1f, 0.88f, 0.5f, 0.9f),
+                            new Vector2(Random.Range(-15f, 15f), Random.Range(60f, 120f)), Random.Range(5f, 7f), 0f, 0f, 0f);
                 }
             }
         }

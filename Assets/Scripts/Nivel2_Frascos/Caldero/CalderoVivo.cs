@@ -173,9 +173,6 @@ namespace FluxLab.Nivel2
             objetivo = Aclarar(objetivo, 0.3f);
             caldero?.Festejar();
             Destello(Color.white, 1.4f);
-            Ondas(Color.white, 4);
-            for (int i = 0; i < mezcla.Count; i++)
-                Espiral(mezcla[i], Chispas(0.4f));
 
             for (int i = 0; i < mezcla.Count; i++)
             {
@@ -187,18 +184,50 @@ namespace FluxLab.Nivel2
                 });
             }
 
-            Emitir(new ParticulasUI.Rafaga
+            // Magia blanca y dorada (sin estrellas del Polvo). Cada receta correcta festeja distinto,
+            // para que no se sienta repetido: fuente, estallido en círculo o remolino.
+            switch (vecesExito++ % 3)
             {
-                forma = FormasUI.Destello, cantidad = Chispas(2f), centro = Boca + new Vector2(0f, 20f), dispersion = new Vector2(40f, 8f),
-                color = new Color(1f, 0.97f, 0.8f, 1f), angulo = new Vector2(5f, 175f), rapidez = new Vector2(180f, 460f),
-                vida = new Vector2(0.8f, 1.4f), tamano = new Vector2(22f, 44f), gravedad = 140f, giro = 220f
-            });
-            Emitir(new ParticulasUI.Rafaga
+                case 0: // Fuente: muchas chispas que suben flotando y tres anillos dorados.
+                    Ondas(Dorado, 3);
+                    Emitir(ChispasQueSuben(Chispas(0.5f), Blanco));
+                    Emitir(ChispasQueSuben(Chispas(0.35f), Dorado));
+                    for (int i = 0; i < mezcla.Count; i++)
+                        Espiral(mezcla[i], Chispas(0.12f));
+                    break;
+
+                case 1: // Estallido: un círculo de chispas que se abre hacia todos lados.
+                    Ondas(Color.white, 2);
+                    Emitir(new ParticulasUI.Rafaga
+                    {
+                        forma = FormasUI.Destello, cantidad = Chispas(0.65f), centro = Boca + new Vector2(0f, 30f), dispersion = new Vector2(20f, 10f),
+                        color = Blanco, angulo = new Vector2(0f, 360f), rapidez = new Vector2(240f, 380f),
+                        vida = new Vector2(0.9f, 1.3f), tamano = new Vector2(24f, 40f), gravedad = 60f, giro = 180f
+                    });
+                    Emitir(ChispasQueSuben(Chispas(0.3f), Dorado));
+                    break;
+
+                default: // Remolino: los colores de la receta giran subiendo, con chispas doradas.
+                    Ondas(Dorado, 2);
+                    for (int i = 0; i < mezcla.Count; i++)
+                        Espiral(mezcla[i], Chispas(0.35f));
+                    Emitir(ChispasQueSuben(Chispas(0.4f), Dorado));
+                    break;
+            }
+        }
+
+        int vecesExito;
+        static readonly Color Dorado = new Color(1f, 0.85f, 0.45f, 1f);
+        static readonly Color Blanco = new Color(1f, 0.98f, 0.9f, 1f);
+
+        ParticulasUI.Rafaga ChispasQueSuben(int cantidad, Color color)
+        {
+            return new ParticulasUI.Rafaga
             {
-                forma = escena.Spr("gem_yellow_star"), cantidad = Chispas(0.8f), centro = Boca + new Vector2(0f, 20f), dispersion = new Vector2(40f, 8f),
-                color = Color.white, angulo = new Vector2(30f, 150f), rapidez = new Vector2(250f, 480f),
-                vida = new Vector2(1f, 1.5f), tamano = new Vector2(20f, 36f), gravedad = 260f, giro = 360f
-            });
+                forma = FormasUI.Destello, cantidad = cantidad, centro = Boca + new Vector2(0f, 20f), dispersion = new Vector2(90f, 10f),
+                color = color, angulo = new Vector2(70f, 110f), rapidez = new Vector2(60f, 150f),
+                vida = new Vector2(1.4f, 2.2f), tamano = new Vector2(22f, 38f), gravedad = -25f, giro = 90f
+            };
         }
 
         /// <summary>Ingrediente equivocado: el caldero se pone negro, erupciona y tiembla.</summary>

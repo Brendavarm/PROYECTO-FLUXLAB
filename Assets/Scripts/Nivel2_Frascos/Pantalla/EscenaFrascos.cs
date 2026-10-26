@@ -54,6 +54,7 @@ namespace FluxLab.Nivel2
         readonly Dictionary<IngredientKind, RectTransform> cartas = new Dictionary<IngredientKind, RectTransform>();
 
         Font font;
+        bool letraTallada;   // la letra ya es gruesa: no se le agrega negrita
         Sprite solido;
         Sprite disco;
         AudioSource sfx;
@@ -112,8 +113,32 @@ namespace FluxLab.Nivel2
             return sprite;
         }
 
-        public Sprite Madera => ArteMenu("boton.png", new Vector4(100f, 80f, 100f, 80f));
-        public Sprite Pergamino => ArteMenu("pergamino.png", new Vector4(115f, 70f, 115f, 70f));
+        /// <summary>
+        /// Pieza tallada del Jardín de Luna (Resources/FluxLab/Nivel3/UI/&lt;nombre&gt;.png), la misma de la
+        /// Mesa del Aprendiz. Solo se usa la imagen, no se cambia nada del nivel 3. Null si falta.
+        /// </summary>
+        Sprite Tallado(string nombre)
+        {
+            string clave = "Nivel3/" + nombre;
+            if (!artesMenu.TryGetValue(clave, out Sprite listo))
+            {
+                listo = Nivel3UI.SpriteUI(nombre);
+                artesMenu[clave] = listo;
+            }
+            return listo;
+        }
+
+        // Maderas y pergamino tallados; si faltan las imágenes, las del menú de antes.
+        public Sprite Madera => Tallado("boton_ancho") ?? ArteMenu("boton.png", new Vector4(100f, 80f, 100f, 80f));
+        public Sprite Pergamino => Tallado("pergamino") ?? ArteMenu("pergamino.png", new Vector4(115f, 70f, 115f, 70f));
+        /// <summary>Tabla grande con postes a los lados (título del nivel, letreros). Se usa sin estirar.</summary>
+        public Sprite Placa => Tallado("placa_titulo") ?? Madera;
+        /// <summary>Tabla mediana (Ronda y Puntos). Se usa sin estirar.</summary>
+        public Sprite PlacaRonda => Tallado("placa_ronda") ?? Madera;
+        /// <summary>Botón redondo de madera (música y sonido).</summary>
+        public Sprite Redondo => Tallado("boton_cuadrado") ?? Madera;
+        /// <summary>Las 6 tablas de colores de la bandeja, en una sola imagen.</summary>
+        Sprite BandejaTallada => Tallado("bandeja");
 
         /// <summary>El laboratorio pintado; CalderoVivo recorta de aquí el caldero para animarlo.</summary>
         public Texture2D FondoTextura { get; private set; }
@@ -144,9 +169,9 @@ namespace FluxLab.Nivel2
         public void Construir(ConfigFrascos config, Acciones acciones)
         {
             LlenarCatalogo();
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font == null)
-                font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            // La misma letra redondita de la Mesa del Aprendiz y el Jardín de Luna (si falta, la de Unity).
+            font = Nivel3UI.Fuente;
+            letraTallada = font != null && font.name.Contains("Lilita");
             solido = CrearSolido();
             disco = CrearDisco(96);
             largo = Mathf.Clamp(config.largoReceta, 1, MaxReceta);
@@ -236,7 +261,7 @@ namespace FluxLab.Nivel2
             resplandorReceta = Imagen(padre, "ResplandorReceta", FormasUI.Humo, RecetaNormal, new Vector2(1000f, 520f), false);
             resplandorReceta.color = new Color(1f, 0.85f, 0.45f, 0f);
 
-            var tablero = Imagen(padre, "Receta", SpriteArchivo("Menu/pergamino.png"), RecetaNormal, new Vector2(700f, 286f), true);
+            var tablero = Imagen(padre, "Receta", Pergamino, RecetaNormal, new Vector2(700f, 290f), false);
             receta = tablero.rectTransform;
 
             var titulo = Texto(tablero.transform, "La receta", 32, Hex("#5a3b24"), FontStyle.Bold);
@@ -411,27 +436,74 @@ namespace FluxLab.Nivel2
             barra.localScale = Vector3.one;
         }
 
+        // ───────────────────────── Bandeja tallada ─────────────────────────
+        // La imagen "bandeja" (Mesa del Aprendiz) trae 6 tablas de colores pegadas. Como en este nivel
+        // las cartas cambian de lugar, cada tabla se recorta aparte y viaja con su figura.
+
+        const float BandejaAnchoArte = 1509f;   // tamaño de la imagen original, en píxeles
+        const float BandejaAltoArte = 174f;
+        const float TablaAnchoArte = 206f;      // cada tabla de color dentro de la imagen
+        const float TablaAltoArte = 149f;
+        const float TablaCentroYArte = 80.5f;   // desde arriba
+        static readonly float[] TablaCentroXArte = { 137f, 382f, 628f, 876f, 1123f, 1373f };
+
+        static readonly Vector2 CentroBandeja = new Vector2(-90f, -440f);
+        const float AnchoBandeja = 1352f;
+        static float EscalaBandeja => AnchoBandeja / BandejaAnchoArte;
+        const float AlturaGema = 14f;           // la figura va un poco arriba del centro de su tabla
+
+        // Qué tabla de color le toca a cada ingrediente (rojo, azul, amarillo, verde, morado, naranja).
+        static int ColorDeTabla(IngredientKind tipo)
+        {
+            switch (tipo)
+            {
+                case IngredientKind.Fuego: return 0;
+                case IngredientKind.Gota: return 1;
+                case IngredientKind.Polvo: return 2;
+                case IngredientKind.Hierba: return 3;
+                case IngredientKind.Cristal: return 4;
+                default: return 5;
+            }
+        }
+
+        // Centro del lugar número "puesto" de la bandeja (0 = el de la izquierda), en la pantalla.
+        static Vector2 LugarEnBandeja(int puesto)
+        {
+            float k = EscalaBandeja;
+            float x = (TablaCentroXArte[Mathf.Clamp(puesto, 0, TablaCentroXArte.Length - 1)] - BandejaAnchoArte * 0.5f) * k;
+            float y = (BandejaAltoArte * 0.5f - TablaCentroYArte) * k;
+            return CentroBandeja + new Vector2(x, y);
+        }
+
+        // Recorta una tabla de color de la imagen de la bandeja.
+        Sprite TablaDeColor(int cual)
+        {
+            Sprite bandeja = BandejaTallada;
+            if (bandeja == null)
+                return null;
+            Rect zona = bandeja.rect;
+            float x = zona.x + TablaCentroXArte[cual] - TablaAnchoArte * 0.5f;
+            float y = zona.y + BandejaAltoArte - TablaCentroYArte - TablaAltoArte * 0.5f;
+            return Sprite.Create(bandeja.texture, new Rect(x, y, TablaAnchoArte, TablaAltoArte), new Vector2(0.5f, 0.5f), 100f);
+        }
+
         void ConstruirBandeja(Transform padre, System.Action<IngredientKind> alElegir, System.Action vaciar)
         {
-            // Repisa de madera; encima, una carta de pergamino por ingrediente.
-            var repisa = Imagen(padre, "Repisa", Madera, new Vector2(-40f, -466f), new Vector2(1300f, 188f), false);
-            repisa.type = Image.Type.Tiled;
-            repisa.pixelsPerUnitMultiplier = 1.6f;
+            // El marco de madera con sus 6 huecos; encima, la tabla de color de cada ingrediente.
+            float k = EscalaBandeja;
+            Sprite arteBandeja = BandejaTallada;
+            var repisa = Imagen(padre, "Bandeja", arteBandeja != null ? arteBandeja : Madera, CentroBandeja, new Vector2(AnchoBandeja, BandejaAltoArte * k), arteBandeja != null);
             var sombraRepisa = repisa.gameObject.AddComponent<Shadow>();
             sombraRepisa.effectColor = new Color(0f, 0f, 0f, 0.4f);
             sombraRepisa.effectDistance = new Vector2(0f, -6f);
 
-            const float ancho = 176f;
+            float ancho = TablaAnchoArte * k;
             foreach (IngredientKind tipo in RecetaFrascos.Todos)
             {
                 Ing info = catalogo[tipo];
-                var carta = Imagen(padre, "Carta_" + tipo, Pergamino, Vector2.zero, new Vector2(ancho, 152f), false);
-                carta.type = Image.Type.Sliced;
-                carta.pixelsPerUnitMultiplier = 3.2f;
+                Sprite tabla = TablaDeColor(ColorDeTabla(tipo));
+                var carta = Imagen(padre, "Carta_" + tipo, tabla != null ? tabla : Pergamino, Vector2.zero, new Vector2(ancho, TablaAltoArte * k), tabla != null);
                 carta.raycastTarget = true;
-                var sombraCarta = carta.gameObject.AddComponent<Shadow>();
-                sombraCarta.effectColor = new Color(0.2f, 0.1f, 0.05f, 0.45f);
-                sombraCarta.effectDistance = new Vector2(0f, -5f);
 
                 var boton = carta.gameObject.AddComponent<Button>();
                 boton.targetGraphic = carta;
@@ -445,26 +517,24 @@ namespace FluxLab.Nivel2
                 boton.onClick.AddListener(() => alElegir(capturado));
                 carta.gameObject.AddComponent<HoverScale>().scale = 1.08f;
 
-                // Halo del color del ingrediente que late detrás de la figura.
-                var halo = Imagen(carta.transform, "Halo", disco, new Vector2(0f, 16f), new Vector2(124f, 124f), false);
-                Color brillo = info.Glow;
+                // Halo claro que late detrás de la figura (sobre la tabla de color se ve como un brillo).
+                var halo = Imagen(carta.transform, "Halo", disco, new Vector2(0f, AlturaGema), new Vector2(104f, 104f), false);
+                Color brillo = Color.Lerp(info.Glow, Color.white, 0.55f);
                 brillo.a = 0.45f;
                 halo.color = brillo;
                 halosBandeja.Add(halo);
 
                 // Solo la figura, igual que en la receta, para no confundir. El frasco aparece al echarlo.
-                var gema = Imagen(carta.transform, "Gema", Spr(info.Sprite), new Vector2(0f, 16f), new Vector2(72f, 72f), true);
+                var gema = Imagen(carta.transform, "Gema", Spr(info.Sprite), new Vector2(0f, AlturaGema), new Vector2(64f, 64f), true);
                 gemasBandeja.Add(gema.rectTransform);
 
-                var banda = Imagen(carta.transform, "Banda", solido, new Vector2(0f, -50f), new Vector2(112f, 30f), false);
-                banda.color = info.Glow;
-                var sombraBanda = banda.gameObject.AddComponent<Shadow>();
-                sombraBanda.effectColor = new Color(0.2f, 0.1f, 0.05f, 0.5f);
-                sombraBanda.effectDistance = new Vector2(0f, -3f);
-                var nombre = Texto(carta.transform, info.Nombre, 18, Color.white, FontStyle.Bold);
-                nombre.rectTransform.anchoredPosition = new Vector2(0f, -50f);
-                nombre.rectTransform.sizeDelta = new Vector2(ancho - 16f, 28f);
-                Contorno(nombre, new Color(0.15f, 0.08f, 0.05f, 0.7f));
+                // El nombre en letra crema, como en la Mesa del Aprendiz.
+                var nombre = Texto(carta.transform, info.Nombre, 25, Hex("#fff3da"), FontStyle.Bold);
+                nombre.rectTransform.anchoredPosition = new Vector2(0f, -36f);
+                nombre.rectTransform.sizeDelta = new Vector2(ancho - 10f, 34f);
+                var contornoNombre = nombre.gameObject.AddComponent<Outline>();
+                contornoNombre.effectColor = new Color(0.1f, 0.05f, 0.03f, 0.75f);
+                contornoNombre.effectDistance = new Vector2(1.6f, -1.6f);
 
                 // Sin número en la carta (confundía con los números de la receta).
                 // Las teclas 1-6 siguen funcionando según la posición en pantalla.
@@ -473,7 +543,7 @@ namespace FluxLab.Nivel2
 
             AcomodarBandeja(RecetaFrascos.Todos, false);
 
-            var botonVaciar = BotonMadera(padre, "VACIAR", new Vector2(762f, -462f), new Vector2(232f, 104f), 28, vaciar, 0.35f, true, true);
+            var botonVaciar = BotonMadera(padre, "VACIAR", new Vector2(790f, -440f), new Vector2(252f, 95f), 30, vaciar, 0.35f, true, true);
             Anclar(botonVaciar.rectTransform, new Vector2(1f, 0f));
             var icono = Imagen(botonVaciar.transform, "Icono", Spr("caldero"), new Vector2(-72f, 4f), new Vector2(54f, 46f), true);
             icono.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -25f);
@@ -487,7 +557,7 @@ namespace FluxLab.Nivel2
                 puntaBarra.rectTransform.localScale = Vector3.one * (1f + Mathf.Sin(t * 8f) * 0.18f);
             for (int i = 0; i < gemasBandeja.Count; i++)
             {
-                gemasBandeja[i].anchoredPosition = new Vector2(0f, 16f + Mathf.Sin(t * 2.2f + i * 0.9f) * 3.5f);
+                gemasBandeja[i].anchoredPosition = new Vector2(0f, AlturaGema + Mathf.Sin(t * 2.2f + i * 0.9f) * 3.5f);
                 gemasBandeja[i].localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 1.6f + i) * 4f);
                 Color c = halosBandeja[i].color;
                 c.a = 0.35f + Mathf.Sin(t * 2.6f + i * 0.9f) * 0.12f;
@@ -498,19 +568,19 @@ namespace FluxLab.Nivel2
 
         void ConstruirHud(Transform padre, Acciones acciones)
         {
-            // Letrero de madera colgando de dos cuerdas, como los del menú.
-            var letrero = Imagen(padre, "LetreroNivel", Madera, Vector2.zero, new Vector2(410f, 118f), false);
+            // Placa tallada del título (la de la Mesa del Aprendiz), colgando de dos cuerdas.
+            var letrero = Imagen(padre, "LetreroNivel", Placa, Vector2.zero, new Vector2(430f, 128f), true);
             letrero.rectTransform.pivot = new Vector2(0.5f, 1f);
             letrero.rectTransform.anchoredPosition = new Vector2(-733f, 528f);
             Anclar(letrero.rectTransform, new Vector2(0f, 1f));
             for (int lado = -1; lado <= 1; lado += 2)
             {
-                var cuerda = Imagen(letrero.transform, "Cuerda", null, new Vector2(lado * 140f, 94f), new Vector2(7f, 70f), false);
+                var cuerda = Imagen(letrero.transform, "Cuerda", null, new Vector2(lado * 172f, 94f), new Vector2(7f, 70f), false);
                 cuerda.color = Hex("#6b4a2b");
             }
-            var pocion = Imagen(letrero.transform, "Icono", SpriteArchivo("Menu/pocion.png"), new Vector2(-150f, 0f), new Vector2(66f, 66f), true);
+            var pocion = Imagen(letrero.transform, "Icono", SpriteArchivo("Menu/pocion.png"), new Vector2(-138f, 0f), new Vector2(60f, 60f), true);
             pocion.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 10f);
-            var titulo = TextoMadera(letrero.transform, NivelesTaller.De(MesaDeFrascos.Nivel).nombre.ToUpper(), 26, new Vector2(30f, 0f), new Vector2(300f, 60f));
+            var titulo = TextoMadera(letrero.transform, NivelesTaller.De(MesaDeFrascos.Nivel).nombre, 32, new Vector2(26f, 0f), new Vector2(300f, 70f));
             titulo.horizontalOverflow = HorizontalWrapMode.Overflow;
             var colgante = letrero.gameObject.AddComponent<MaderaColgante>();
             maderas.Add(colgante);
@@ -539,16 +609,13 @@ namespace FluxLab.Nivel2
             Anclar(BotonAudio(padre, false, new Vector2(-772f, 290f), 0.35f, true).rectTransform, new Vector2(0f, 1f));
             Imagen(salir.transform, "Icono", SpriteArchivo("Menu/puerta.png"), new Vector2(-58f, 2f), new Vector2(44f, 44f), true);
 
-            // Marcador en un pergamino, con la estrella del menú.
-            var marcador = Imagen(padre, "PergaminoMarcador", SpriteArchivo("Menu/pergamino.png"), new Vector2(765f, 470f), new Vector2(350f, 144f), false);
+            // Marcador en la placa tallada de Ronda y Puntos, con la estrella del menú.
+            var marcador = Imagen(padre, "PlacaMarcador", PlacaRonda, new Vector2(765f, 460f), new Vector2(340f, 128f), true);
             Anclar(marcador.rectTransform, new Vector2(1f, 1f));
-            rondaLabel = Texto(marcador.transform, "", 30, Hex("#4a2c17"), FontStyle.Bold);
-            rondaLabel.rectTransform.anchoredPosition = new Vector2(0f, 18f);
-            rondaLabel.rectTransform.sizeDelta = new Vector2(250f, 40f);
-            Imagen(marcador.transform, "Estrella", SpriteArchivo("Menu/estrella.png"), new Vector2(-78f, -24f), new Vector2(36f, 36f), true);
-            puntosLabel = Texto(marcador.transform, "", 24, Hex("#8a5a20"), FontStyle.Bold);
-            puntosLabel.rectTransform.anchoredPosition = new Vector2(14f, -24f);
-            puntosLabel.rectTransform.sizeDelta = new Vector2(190f, 34f);
+            rondaLabel = TextoMadera(marcador.transform, "", 32, new Vector2(0f, 18f), new Vector2(280f, 44f));
+            Imagen(marcador.transform, "Estrella", SpriteArchivo("Menu/estrella.png"), new Vector2(-76f, -22f), new Vector2(32f, 32f), true);
+            puntosLabel = TextoMadera(marcador.transform, "", 26, new Vector2(14f, -22f), new Vector2(200f, 36f));
+            puntosLabel.color = Hex("#e6c98b");
             var colganteMarcador = marcador.gameObject.AddComponent<MaderaColgante>();
             colganteMarcador.retraso = 0.1f;
             colganteMarcador.balanceo = 1f;
@@ -559,7 +626,7 @@ namespace FluxLab.Nivel2
         // Nuevo en el nivel 2: placa con los frascos de vida bajo el marcador.
         void ConstruirVidas(Transform padre, int cantidad)
         {
-            var placa = Imagen(padre, "PlacaVidas", Madera, new Vector2(765f, 364f), new Vector2(300f, 104f), false);
+            var placa = Imagen(padre, "PlacaVidas", Madera, new Vector2(765f, 340f), new Vector2(300f, 104f), false);
             Anclar(placa.rectTransform, new Vector2(1f, 1f));
             Vidas = placa.gameObject.AddComponent<VidasFrascos>();
             Vidas.Construir(this, cantidad);
@@ -640,15 +707,13 @@ namespace FluxLab.Nivel2
             velo.color = new Color(0.06f, 0.03f, 0.05f, 0.62f);
             velo.raycastTarget = true;
 
-            var marco = Imagen(velo.transform, "Panel", Madera, Vector2.zero, tamano, false);
-            marco.type = Image.Type.Tiled;
-            marco.pixelsPerUnitMultiplier = 1.4f;
+            // El pergamino rústico de la Mesa del Aprendiz; los botones de madera van encima.
+            var marco = Imagen(velo.transform, "Panel", Pergamino, Vector2.zero, tamano, false);
             var sombraMarco = marco.gameObject.AddComponent<Shadow>();
             sombraMarco.effectColor = new Color(0f, 0f, 0f, 0.5f);
             sombraMarco.effectDistance = new Vector2(0f, -10f);
-            var hoja = Imagen(marco.transform, "Pergamino", Pergamino, Vector2.zero, tamano - new Vector2(60f, 60f), false);
-            hoja.type = Image.Type.Sliced;
-            hoja.pixelsPerUnitMultiplier = 1.5f;
+            var hoja = Imagen(marco.transform, "Contenido", null, Vector2.zero, tamano - new Vector2(60f, 60f), false);
+            hoja.enabled = false;   // solo agrupa lo de adentro
             raiz = velo.gameObject;
             raiz.SetActive(false);
             return hoja.transform;
@@ -868,17 +933,12 @@ namespace FluxLab.Nivel2
         /// </summary>
         public void AcomodarBandeja(IngredientKind[] orden, bool animar)
         {
-            const float ancho = 176f;
-            const float espacio = 14f;
-            float total = orden.Length * ancho + (orden.Length - 1) * espacio;
-            float x = -total * 0.5f + ancho * 0.5f - 70f;
             for (int i = 0; i < orden.Length; i++)
             {
                 RectTransform carta = cartas[orden[i]];
-                carta.anchoredPosition = new Vector2(x, -468f);
+                carta.anchoredPosition = LugarEnBandeja(i);
                 if (animar)
                     host.StartCoroutine(Pop(carta));
-                x += ancho + espacio;
             }
         }
 
@@ -996,7 +1056,11 @@ namespace FluxLab.Nivel2
         /// <summary>Botón cuadrado de madera con el icono de música o de sonido del menú.</summary>
         Image BotonAudio(Transform padre, bool esMusica, Vector2 posicion, float retraso, bool esperarSenal)
         {
-            var placa = BotonMadera(padre, "", posicion, new Vector2(96f, 82f), 20, esMusica ? (System.Action)AlternarMusica : AlternarSonido, retraso, esperarSenal);
+            var placa = BotonMadera(padre, "", posicion, new Vector2(92f, 92f), 20, esMusica ? (System.Action)AlternarMusica : AlternarSonido, retraso, esperarSenal);
+            // Botón redondo tallado, como los de pausa y sonido del Jardín de Luna.
+            placa.sprite = Redondo;
+            placa.type = Image.Type.Simple;
+            placa.preserveAspect = true;
             var icono = Imagen(placa.transform, "Icono", SpriteArchivo(esMusica ? "Menu/musica.png" : "Menu/sonido.png"), new Vector2(0f, 2f), new Vector2(52f, 52f), true);
             var raya = Imagen(icono.transform, "Apagado", null, Vector2.zero, new Vector2(64f, 8f), false);
             raya.color = Hex("#d64545");
@@ -1048,6 +1112,9 @@ namespace FluxLab.Nivel2
             imagen.sprite = sprite;
             imagen.preserveAspect = aspecto;
             imagen.raycastTarget = false;
+            // Maderas y pergaminos traen sus bordes marcados: se estiran por el centro sin deformar las esquinas.
+            if (!aspecto && sprite != null && sprite.border.sqrMagnitude > 0f)
+                imagen.type = Image.Type.Sliced;
             return imagen;
         }
 
@@ -1059,7 +1126,7 @@ namespace FluxLab.Nivel2
             texto.font = font;
             texto.text = contenido;
             texto.fontSize = tamano;
-            texto.fontStyle = estilo;
+            texto.fontStyle = letraTallada && estilo == FontStyle.Bold ? FontStyle.Normal : estilo;
             texto.color = color;
             texto.alignment = TextAnchor.MiddleCenter;
             texto.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -1165,10 +1232,10 @@ namespace FluxLab.Nivel2
             rect.anchoredPosition = desdeCentro - new Vector2((esquina.x - 0.5f) * 1920f, (esquina.y - 0.5f) * 1080f);
         }
 
-        // Texto crema con contorno café oscuro, el mismo estilo de los botones del menú.
+        // Texto crema con contorno café oscuro, el mismo estilo de los botones de la Mesa del Aprendiz.
         public Text TextoMadera(Transform padre, string contenido, int letra, Vector2 posicion, Vector2 tamano)
         {
-            var texto = Texto(padre, contenido, letra, Hex("#fff8ee"), FontStyle.Bold);
+            var texto = Texto(padre, contenido, letra, Hex("#f3e4c4"), FontStyle.Bold);
             texto.rectTransform.anchoredPosition = posicion;
             texto.rectTransform.sizeDelta = tamano;
             var contorno = texto.gameObject.AddComponent<Outline>();

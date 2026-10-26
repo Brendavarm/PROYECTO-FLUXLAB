@@ -69,8 +69,9 @@ Las demás quedan listas. Para verlas: abrir `Nivel2_GaleriaMagnus.unity` y dar 
 
 ## Entrada al nivel
 
-- **Estilo:** tablero de madera y pergamino (las mismas imágenes del menú, `StreamingAssets/Menu/boton.png` y `pergamino.png`).
-- **Mishi:** el gato entra saltando, respira, maúlla con globito y corazones; si le haces clic, maúlla.
+- **Estilo:** maderas y pergamino tallados de la Mesa del Aprendiz / Jardín de Luna (`Resources/FluxLab/Nivel3/UI`: `boton_ancho`, `placa_titulo`, `placa_ronda`, `boton_cuadrado`, `pergamino`, `bandeja`) y la letra `LilitaOne`. Solo se usan las imágenes; se eligen en `EscenaFrascos` (`Madera`, `Pergamino`, `Placa`, `PlacaRonda`, `Redondo`). Si faltan, vuelve a las del menú (`StreamingAssets/Menu/boton.png` y `pergamino.png`).
+- **Bandeja:** cada tabla de color se recorta de `bandeja.png` y viaja con su figura cuando la bandeja se baraja (`LugarEnBandeja`, `TablaDeColor`).
+- **Mishi:** `GatoMishi` llama al gato animado de Sasha (`Gatitos/MishiAnimado`, sin cambiar su código): entra saltando, maúlla con una notita de pergamino y destellos dorados, y mientras espera hace travesuras (pasea, lanza su bola mágica o salta). Si le haces clic, maúlla. Si faltan los dibujos de Sasha, usa la imagen quieta de antes.
 - **Bienvenida** (solo la primera vez), **conteo** 3, 2, 1 y **aviso de ronda espejo** antes de la última ronda.
 - Se activan o desactivan en el Inspector: `mostrarBienvenida`, `conteoInicial`, `anunciarEspejo`. El aviso de espejo y el mensaje final duran `segundosMensajesGrandes`.
 
@@ -83,7 +84,7 @@ Las demás quedan listas. Para verlas: abrir `Nivel2_GaleriaMagnus.unity` y dar 
 ## Resultados
 
 - `Pantalla/ResultadoFrascos.cs`: madera y pergamino, todo animado en orden: el título se desenrolla, los paneles entran desde los lados, las estrellas caen una por una, el puntaje cuenta hacia arriba (sello rojo si es **nuevo récord**), el desempeño aparece fila por fila, sube la poción ganada, aparece Magnus (alegre, contento o dando ánimo) y suben los botones.
-- Un clic acelera la secuencia. Si pasó el nivel, cae confeti y "SIGUIENTE NIVEL" late.
+- Un clic acelera la secuencia. Si pasó el nivel, aparecen destellos blancos y dorados que titilan y luciérnagas doradas que suben (en vez de confeti), y "SIGUIENTE NIVEL" late.
 
 ## Caldero
 
@@ -103,7 +104,7 @@ Las demás quedan listas. Para verlas: abrir `Nivel2_GaleriaMagnus.unity` y dar 
 | Cristal | FrazcoLila |
 | Lágrima | FrazcoNaranja |
 | Vidas | FrazcoRosa |
-| Premio del resultado | FrazcoUnicornio |
+| Premio del resultado | `StreamingAssets/Menu/pocion.png` (FrazcoUnicornio solo si falta) |
 
 ## Cambiar la dificultad sin código
 

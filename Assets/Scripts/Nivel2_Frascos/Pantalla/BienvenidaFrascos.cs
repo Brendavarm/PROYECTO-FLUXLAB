@@ -29,8 +29,6 @@ namespace FluxLab.Nivel2
         RectTransform tituloTexto;
         RectTransform datos;
         RectTransform boton;
-        RectTransform frascoIzquierdo;
-        RectTransform frascoDerecho;
         readonly List<RectTransform> filas = new List<RectTransform>();
         bool listo;
         bool esperandoBoton;
@@ -73,30 +71,30 @@ namespace FluxLab.Nivel2
 
         void ConstruirTablero()
         {
-            frascoIzquierdo = Frasco(ImagenesFrascos.DeIngrediente(IngredientKind.Gota), new Vector2(-790f, 40f));
-            frascoDerecho = Frasco(ImagenesFrascos.DeIngrediente(IngredientKind.Hierba), new Vector2(790f, 40f));
 
-            // La madera se repite en mosaico (si se estirara, las vetas quedarían como bandas gruesas).
-            var madera = escena.Imagen(transform, "Tablero", escena.Madera, new Vector2(0f, -70f), new Vector2(1260f, 720f), false);
-            madera.type = Image.Type.Tiled;
+            // Contenedor invisible: lo que cae y rebota es el pergamino tallado con su placa de título.
+            var madera = escena.Imagen(transform, "Tablero", null, new Vector2(0f, -70f), new Vector2(1260f, 720f), false);
+            madera.enabled = false;
             tablero = madera.rectTransform;
 
             var hoja = escena.Imagen(tablero, "Pergamino", escena.Pergamino, new Vector2(0f, -20f), new Vector2(1160f, 560f), false);
-            hoja.type = Image.Type.Sliced;
+            var sombraHoja = hoja.gameObject.AddComponent<Shadow>();
+            sombraHoja.effectColor = new Color(0f, 0f, 0f, 0.45f);
+            sombraHoja.effectDistance = new Vector2(0f, -10f);
 
-            // Rollo del título, que se desenrolla al entrar.
-            var rolloImg = escena.Imagen(tablero, "RolloTitulo", escena.Pergamino, new Vector2(0f, 360f), new Vector2(1020f, 210f), false);
-            rolloImg.type = Image.Type.Sliced;
+            // Placa tallada del título, que se abre al entrar.
+            var rolloImg = escena.Imagen(tablero, "PlacaTitulo", escena.Placa, new Vector2(0f, 350f), new Vector2(1100f, 270f), true);
             rollo = rolloImg.rectTransform;
-            var titulo = escena.Texto(rollo, "¡Bienvenido al Pasillo de Frascos!", 52, Tinta, FontStyle.Bold);
-            titulo.rectTransform.anchoredPosition = new Vector2(0f, 22f);
-            titulo.rectTransform.sizeDelta = new Vector2(900f, 70f);
+            var titulo = escena.Texto(rollo, "¡Bienvenido al Pasillo de Frascos!", 42, Crema, FontStyle.Bold);
+            titulo.rectTransform.anchoredPosition = new Vector2(0f, 24f);
+            titulo.rectTransform.sizeDelta = new Vector2(760f, 64f);
             titulo.horizontalOverflow = HorizontalWrapMode.Overflow;
-            Contorno(titulo, new Color(1f, 0.95f, 0.8f, 0.9f), 2f, false);
+            Contorno(titulo, new Color(0.15f, 0.07f, 0.04f, 0.95f), 2.5f, true);
             tituloTexto = titulo.rectTransform;
-            var sub = escena.Texto(rollo, "Nivel 2  ·  ¡más difícil que la Mesa del Aprendiz!", 26, new Color(0.55f, 0.28f, 0.15f, 1f), FontStyle.Bold);
-            sub.rectTransform.anchoredPosition = new Vector2(0f, -34f);
-            sub.rectTransform.sizeDelta = new Vector2(860f, 40f);
+            var sub = escena.Texto(rollo, "Nivel 2  ·  ¡más difícil que la Mesa del Aprendiz!", 25, Dorado, FontStyle.Bold);
+            sub.rectTransform.anchoredPosition = new Vector2(0f, -36f);
+            sub.rectTransform.sizeDelta = new Vector2(720f, 36f);
+            Contorno(sub, new Color(0.15f, 0.07f, 0.04f, 0.85f), 1.6f, false);
 
             float y = 200f;
             Fila(hoja.transform, ref y, Icono.Uno, "Los ingredientes se encienden <b>uno por uno</b>. ¡Atento!");
@@ -117,7 +115,7 @@ namespace FluxLab.Nivel2
             Contorno(textoDatos, new Color(0.2f, 0.1f, 0.05f, 0.9f), 2f, false);
 
             var listoImg = escena.Boton(transform, "¡Estoy listo!", escena.Madera, new Vector2(0f, -455f), new Vector2(460f, 128f), 42, Crema, () => listo = true);
-            listoImg.pixelsPerUnitMultiplier = 1.4f;
+            listoImg.pixelsPerUnitMultiplier = 0.8f;   // esquinas talladas un poco más grandes en un botón tan grande
             Contorno(listoImg.GetComponentInChildren<Text>(), new Color(0.2f, 0.1f, 0.05f, 1f), 3f, true);
             boton = listoImg.rectTransform;
         }
@@ -177,11 +175,6 @@ namespace FluxLab.Nivel2
                     escena.Imagen(padre, "Linea", null, centro, new Vector2(4f, 58f), false).color = new Color(1f, 1f, 1f, 0.9f);
                     break;
             }
-        }
-
-        RectTransform Frasco(Sprite sprite, Vector2 posicion)
-        {
-            return escena.Imagen(transform, "FrascoDecorado", sprite != null ? sprite : escena.Spr("frasco_azul"), posicion, new Vector2(150f, 250f), true).rectTransform;
         }
 
         // ───────────────────────── Bienvenida ─────────────────────────
@@ -255,8 +248,6 @@ namespace FluxLab.Nivel2
                 tablero.anchoredPosition = inicioTablero + new Vector2(0f, e * 1300f);
                 tablero.localRotation = Quaternion.Euler(0f, 0f, e * 8f);
                 boton.anchoredPosition = new Vector2(0f, -455f - e * 400f);
-                frascoIzquierdo.anchoredPosition += new Vector2(-1500f, 0f) * Time.deltaTime;
-                frascoDerecho.anchoredPosition += new Vector2(1500f, 0f) * Time.deltaTime;
             });
             yield return gato.Entrar(gato.GetComponent<RectTransform>().anchoredPosition, new Vector2(1200f, -200f), 0.5f);
             gato.gameObject.SetActive(false);
@@ -274,8 +265,6 @@ namespace FluxLab.Nivel2
             datos.localScale = Vector3.zero;
             boton.localScale = Vector3.zero;
             boton.anchoredPosition = new Vector2(0f, -455f);
-            frascoIzquierdo.anchoredPosition = new Vector2(-790f, 40f);
-            frascoDerecho.anchoredPosition = new Vector2(790f, 40f);
             gato.gameObject.SetActive(false);
         }
 
@@ -283,15 +272,14 @@ namespace FluxLab.Nivel2
         {
             tablero.gameObject.SetActive(visible);
             boton.gameObject.SetActive(visible);
-            frascoIzquierdo.gameObject.SetActive(visible);
-            frascoDerecho.gameObject.SetActive(visible);
         }
 
-        // Un "¡tan!": el título late, suena y suelta destellos.
+        // Un "¡tan!": el título late, suena y suelta un brillo suave a lo largo de la placa
+        // (destellos blancos y dorados que suben despacio, sin la lluvia de estrellas del Polvo).
         IEnumerator Golpe(float duracion, float fuerza, string sonido, int destellos)
         {
             escena.Sonar(sonido);
-            Explosion(tituloTexto.position, Dorado, destellos);
+            BrilloTitulo(destellos);
             yield return Animar(0.22f * duracion, k => tituloTexto.localScale = Vector3.one * Mathf.Lerp(fuerza, 1f, k));
             yield return Esperar(0.12f * duracion);
         }
@@ -533,8 +521,8 @@ namespace FluxLab.Nivel2
             var raiz = grupo.GetComponent<RectTransform>();
             var transparencia = grupo.GetComponent<CanvasGroup>();
 
-            var letrero = escena.Imagen(raiz, "Letrero", escena.Madera, new Vector2(0f, 120f), new Vector2(980f, 230f), false);
-            var textoTitulo = escena.TextoMadera(letrero.transform, titulo, 96, Vector2.zero, new Vector2(900f, 160f));
+            var letrero = escena.Imagen(raiz, "Letrero", escena.Placa, new Vector2(0f, 120f), new Vector2(1000f, 290f), true);
+            var textoTitulo = escena.TextoMadera(letrero.transform, titulo, 80, Vector2.zero, new Vector2(760f, 160f));
             textoTitulo.horizontalOverflow = HorizontalWrapMode.Overflow;
             textoTitulo.color = gano ? Dorado : Crema;
 
@@ -599,7 +587,7 @@ namespace FluxLab.Nivel2
                 yield return Animar(0.22f, k => estrella.rectTransform.localScale = Vector3.one * Mathf.LerpUnclamped(0f, 1f, Rebote(k)));
             }
 
-            // Se queda unos segundos (o hasta que hagan clic) con confeti o corazones.
+            // Se queda unos segundos (o hasta que hagan clic) con magia suave (si ganó) o corazones.
             saltar = false;
             float reloj = 0f;
             while (reloj < config.segundosMensajesGrandes && !saltar)
@@ -607,14 +595,22 @@ namespace FluxLab.Nivel2
                 reloj += Time.deltaTime;
                 textoTitulo.rectTransform.localScale = Vector3.one * (1f + Mathf.Sin(reloj * 5f) * 0.04f);
                 letrero.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(reloj * 1.6f) * 1.5f);
-                if (Random.value < Time.deltaTime * (gano ? 40f : 8f))
+                if (gano && Random.value < Time.deltaTime * 14f)
                 {
-                    Color c = Arcoiris()[Random.Range(0, 5)];
-                    bool estrella = gano && Random.value < 0.4f;
-                    chispas.Una(gano ? (estrella ? escena.Spr("gem_yellow_star") : FormasUI.Punto) : FormasUI.Corazon,
-                        new Vector2(Random.Range(-900f, 900f), gano ? 600f : -560f), Vector2.one * Random.Range(14f, 30f),
-                        gano ? c : new Color(1f, 0.55f, 0.7f, 0.9f),
-                        new Vector2(Random.Range(-40f, 40f), gano ? Random.Range(-260f, -160f) : Random.Range(120f, 200f)),
+                    // Destellos blancos y dorados que titilan en su sitio, o luciérnagas doradas que suben.
+                    if (Random.value < 0.6f)
+                        chispas.Una(FormasUI.Destello, new Vector2(Random.Range(-940f, 940f), Random.Range(-520f, 520f)),
+                            Vector2.one * Random.Range(26f, 46f), Random.value < 0.6f ? Color.white : Dorado,
+                            new Vector2(0f, Random.Range(4f, 12f)), Random.Range(1.4f, 2.4f), 0f, 40f, -0.25f);
+                    else
+                        chispas.Una(FormasUI.Punto, new Vector2(Random.Range(-940f, 940f), -560f),
+                            Vector2.one * Random.Range(8f, 14f), new Color(1f, 0.88f, 0.5f, 0.9f),
+                            new Vector2(Random.Range(-15f, 15f), Random.Range(70f, 130f)), Random.Range(4f, 6f), 0f, 0f, 0f);
+                }
+                else if (!gano && Random.value < Time.deltaTime * 8f)
+                {
+                    chispas.Una(FormasUI.Corazon, new Vector2(Random.Range(-900f, 900f), -560f), Vector2.one * Random.Range(14f, 30f),
+                        new Color(1f, 0.55f, 0.7f, 0.9f), new Vector2(Random.Range(-40f, 40f), Random.Range(120f, 200f)),
                         Random.Range(3f, 5f), 0f, Random.Range(-200f, 200f), 0f);
                 }
 
@@ -648,24 +644,20 @@ namespace FluxLab.Nivel2
             float t = Time.time;
             bool pausado = Time.timeScale <= 0f;
 
-            if (frascoIzquierdo != null && frascoIzquierdo.gameObject.activeSelf)
-            {
-                frascoIzquierdo.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 1.8f) * 10f);
-                frascoDerecho.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 1.8f + 1.5f) * -10f);
-                frascoIzquierdo.localScale = Vector3.one * (1f + Mathf.Sin(t * 3.6f) * 0.04f);
-                frascoDerecho.localScale = Vector3.one * (1f + Mathf.Sin(t * 3.6f + 1.5f) * 0.04f);
-            }
-
-            // Ambiente mágico: burbujas y destellos que flotan detrás de todo.
+            // Cielo de noche, como en la bienvenida del Jardín de Luna: estrellitas blancas medianas que se
+            // encienden en su sitio, titilan y se apagan detrás de todo (sin burbujas).
             relojAmbiente -= Time.deltaTime;
             if (relojAmbiente <= 0f && !pausado)
             {
-                relojAmbiente = 0.12f;
-                bool burbuja = Random.value < 0.5f;
-                chispas.Una(burbuja ? escena.Spr("burbuja_a") : FormasUI.Destello,
-                    new Vector2(Random.Range(-950f, 950f), -560f), Vector2.one * Random.Range(14f, 34f),
-                    burbuja ? new Color(1f, 1f, 1f, 0.6f) : new Color(1f, 0.9f, 0.6f, 0.9f),
-                    new Vector2(Random.Range(-20f, 20f), Random.Range(90f, 170f)), Random.Range(4f, 7f), 0f, burbuja ? 0f : 60f, 0.2f);
+                relojAmbiente = 0.1f;
+                // Alrededor del pergamino, no encima, para que no tapen el texto.
+                Vector2 lugar;
+                do
+                    lugar = new Vector2(Random.Range(-950f, 950f), Random.Range(-530f, 530f));
+                while (tablero.gameObject.activeSelf && Mathf.Abs(lugar.x) < 620f && lugar.y < 470f);
+                chispas.Una(FormasUI.Destello, lugar, Vector2.one * Random.Range(30f, 52f),
+                    new Color(1f, 1f, 1f, 1f),
+                    new Vector2(0f, Random.Range(4f, 12f)), Random.Range(1.6f, 3f), 0f, 40f, -0.25f);
             }
 
             if (esperandoBoton)
@@ -697,6 +689,20 @@ namespace FluxLab.Nivel2
             Color inicial = velo.color;
             yield return Animar(0.3f, k => velo.color = new Color(inicial.r, inicial.g, inicial.b, inicial.a * (1f - k)));
             gameObject.SetActive(false);
+        }
+
+        void BrilloTitulo(int cantidad)
+        {
+            Vector2 centro = ALocal(tituloTexto.position);
+            for (int i = 0; i < 2; i++)
+            {
+                chispas.Emitir(new ParticulasUI.Rafaga
+                {
+                    forma = FormasUI.Destello, cantidad = Mathf.Max(3, cantidad / 3), centro = centro, dispersion = new Vector2(360f, 40f),
+                    color = i == 0 ? new Color(1f, 0.98f, 0.9f, 1f) : Dorado, angulo = new Vector2(70f, 110f), rapidez = new Vector2(30f, 110f),
+                    vida = new Vector2(0.8f, 1.4f), tamano = new Vector2(20f, 36f), gravedad = -20f, giro = 120f
+                });
+            }
         }
 
         void Explosion(Vector3 posicionMundo, Color color, int cantidad)
